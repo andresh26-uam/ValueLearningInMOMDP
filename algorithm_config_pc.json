@@ -1,0 +1,2072 @@
+{
+"ff": {
+        "name": "FireFighters-v0",
+        "n_values": 2,
+        "values_names": ["Professionalism", "Proximity"],
+        "values_short_names": ["Prof", "Prox"],
+        "horizon": 50,
+
+        "assume_variable_horizon": false,
+        
+        
+        "basic_profiles": [[1.0, 0.0], [0.0,1.0]],
+        "profiles_colors": [[1,0,0], [0,0,1]],
+        "feature_selection": "features_one_hot",
+        "initial_state_distribution": "fixed",
+        "environment_is_stochastic": false,
+        "discount": 1.0,
+        "use_pmovi_expert": false,
+        "default_reward_net": {
+            "use_state": true,
+            "use_action": true,
+            "use_next_state": false,
+            "use_done": false,
+            "basic_layer_classes": ["nn.Linear", "nn.Linear", "nn.Linear", "nn.Linear", "ConvexAlignmentLayer"],
+            "activations": ["nn.Tanh", "nn.Tanh", "nn.Tanh", "nn.Tanh", "nn.Identity"],
+            "use_bias": [true, true, true, false, false],
+            "hid_sizes": [50, 100, 50, 2],
+            "negative_grounding_layer": false,
+            "clamp_rewards": false
+        },
+        "reward_feature_extractor": "FeatureExtractorFromVAEnv",
+        "policy_state_feature_extractor": "OneHotFeatureExtractor",
+        "_options_for_feature_extractors": ["FeatureExtractorFromVAEnv", "OneHotFeatureExtractor", "ObservationMatrixFeatureExtractor"],
+        "default_optimizer_kwargs": {
+            "lr": 0.01,
+            "weight_decay": 0.0000
+        },
+        "default_optimizer_class": "lagrange",
+        "algorithm_config": {
+            "pc": {
+                "debug_mode": true,
+                "reward_net": {},
+                
+                "optimizer_kwargs": {
+                    "lr": 0.01,
+                    "lr_grounding": 0.002,
+                    "lr_value_system": 0.004,
+                    "lr_lambda": 0.1,
+                    "initial_lambda": 1.0,
+                    "weight_decay": 0.0000
+                },
+                "optimizer_class": "lagrange",
+                "learn_stochastic_policy": true,
+                "loss_class": "lagrange",
+                "loss_kwargs": {
+                    "model_indifference_tolerance": 0.0001,
+                    "gr_apply_on_misclassified_pairs_only": false, 
+                    "vs_apply_on_misclassified_pairs_only": false, 
+                    "repr_apply_on_worst_clusters_only": false,
+                    "conc_apply_on_worst_clusters_only": true,
+                    "confident_penalty": 5.0,
+                    "cluster_similarity_penalty": 1.0,
+                    "label_smoothing": 0.0,
+                    "lambda_decay": 5e-9},
+                "_loss_class_options": ["cross_entropy_cluster", "soba", "lagrange"],
+                "discount_factor_preferences": 1.0, "discount_factor": 1.0,
+
+                "expert_policy_class": "VAlignedDictSpaceActionPolicy",
+                "expert_policy_kwargs": {
+                    "VAlignedDictSpaceActionPolicy":{
+                        "policy_approximation_method": "mce_original",
+                        "_policy_approximation_method_options": ["mce_original", "new_value_iteration", "use_learner_class"],
+                        "discount": 1.0,
+                        "assume_env_produce_state": true,
+                        "expose_state": true, "use_checkpoints": false,
+                        "approximator_kwargs": {"value_iteration_tolerance": 0.0000001, "iterations": 2000},
+                    
+                        "use_expert_grounding": true
+                    }
+                },
+
+                "learning_policy_class": "VAlignedDictSpaceActionPolicy",
+                "learning_policy_kwargs": {
+                    "VAlignedDictSpaceActionPolicy": {
+                        "policy_approximation_method": "mce_original",
+                        "_policy_approximation_method_options": ["mce_original", "new_value_iteration", "use_learner_class"],
+                        "approximator_kwargs": {"value_iteration_tolerance": 0.0000001, "iterations": 20000},
+                        "assume_env_produce_state": true,
+                        "discount": 1.0,
+                        "expose_state": true, "use_checkpoints": false,
+                        "use_expert_grounding": false
+                    },
+                    "ppo_learner": {
+                        "policy_kwargs": {
+                        "net_arch": {"pi": [], "vf": []}
+                        },
+                        "policy_class": "MaskedPolicySimple",
+
+                        "learner_policy_class": "PPO",
+                        "learner_policy_kwargs" : 
+                        {
+                            "batch_size": 25,
+                            "n_steps": 50,
+                            "ent_coef": 0.1,
+                            "learning_rate": 0.02,
+                            "gamma": 1.0,
+                            "gae_lambda": 0.999,
+                            "clip_range": 0.05,
+                            "vf_coef": 0.01,
+                            "n_epochs": 5,
+                            "normalize_advantage": true,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_ff/"
+                        }                
+                    }
+                },
+
+                "use_quantified_preference": false,
+                "preference_sampling_temperature": 0,
+                "query_schedule": "constant",
+                "train_kwargs": {
+                    "max_iter": 50,
+                    "trajectory_batch_size": "full",
+                    "comparisons_per_agent_per_step": null,
+                    "fragment_length": "horizon",
+                    "mutation_prob": 0.05,
+                    "mutation_scale": 0.1,
+                    "max_assignment_memory": 5
+                },
+
+                
+                "reward_trainer_kwargs": {
+                    "epochs": 3,
+                    "refining_steps_after_cluster_assignment": 2,
+                    
+                    "initial_refining_steps": 3,
+                    "initial_exploration_rate": 0.3,
+                    "batch_size": "full",
+                    "inner_k_fold_validation_divisions_per_epoch": null
+                }
+            }
+        }
+    },
+"dst": {
+        "name": "deep-sea-treasure-v1",
+        "n_values": 2,
+        "values_names": ["Achievement", "Security"],
+        "values_short_names": ["Ach", "Sec"],
+        "horizon": 100,
+
+        "assume_variable_horizon": true,
+        
+        
+        "basic_profiles": [[1.0, 0.0], [0.0,1.0]],
+        "profiles_colors": [[1,0,0], [0,0,1]],
+        "environment_is_stochastic": false,
+        "discount": 1.0,
+        "default_reward_net": {
+            "use_state": false,
+            "use_action": false,
+            "use_next_state": true,
+            "use_done": false,
+            "basic_layer_classes": ["nn.Linear", "nn.Linear", "ConvexAlignmentLayer"],
+            "activations": ["nn.LeakyReLU", "nn.Identity", "nn.Identity"],
+            "use_bias": [true, true],
+            "hid_sizes": [16,16],
+            "negative_grounding_layer": false,
+            "clamp_rewards": null,
+            "normalize_output": false
+        },
+        "reward_feature_extractor": "ObservationWrapperFeatureExtractor",
+        "default_optimizer_kwargs": {
+            "lr": 0.01,
+            "weight_decay": 0.0000
+        },
+        "default_optimizer_class": "lagrange",
+        "algorithm_config": {
+            "pc": {
+                "debug_mode": true,
+                "reward_net": {},
+
+                "default_wrappers": [{
+                            "type": "OneHotObservationWrapper",
+                            "kwargs": {
+                                "int_indices": [0,1],
+                                "num_classes": [11,11],
+                                "collide": false
+
+                            }
+                        },
+                        { "type": "MORecordEpisodeStatistics",
+                      "kwargs": {"gamma": 1.0}
+                    }  
+                ],
+
+                "discount_factor": 1.0,
+
+                
+                "expert_policy_class": "envelope",
+                "expert_policy_kwargs": {
+                    "ppo_learner": {
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 100000,
+                            "discount": 1.0,
+                            "log_interval": 1,
+                            "tb_log_name": "DST_expert",
+                            "callback": null,
+                            "progress_bar": true,
+                            "stochastic": false,
+                            "ref_point": [0.0, -25.0],
+                            "known_pareto_front": "[np.array([0.7, -1]), np.array([8.2, -3]),np.array([11.5, -5]),np.array([14.0, -7]),np.array([15.1, -8]),np.array([16.1, -9]),np.array([19.6, -13]),np.array([20.3, -14]),np.array([22.4, -17]),np.array([23.7, -19]),]",
+                            
+                            "num_eval_weights_for_front": 20,
+                            "num_eval_episodes_for_front": 100,
+                            "reset_num_timesteps": false
+                        },
+                        "policy_kwargs": {
+                        "net_arch": {"pi": [], "vf": []}
+                        },
+                        "policy_class": "MlpPolicy",
+
+                        "learner_policy_class": "PPO",
+                        "learner_policy_kwargs" : 
+                        {
+                            "batch_size": 20,
+                            "n_steps": 1000,
+                            "ent_coef": 0.01,
+                            "learning_rate": 0.001,
+                            "gamma": 1.0,
+                            "gae_lambda": 0.95,
+                            "clip_range": 0.1,
+                            "vf_coef": 0.1,
+                            "n_epochs": 5,
+                            "normalize_advantage": true,
+                            "verbose":true,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_dst/"
+                        }
+                
+                    },
+                    "envelope":{
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 100000,
+                            "ref_point": [0.0, -100.0],
+                            "known_pareto_front": "[np.array([0.7, -1]), np.array([8.2, -3]),np.array([11.5, -5]),np.array([14.0, -7]),np.array([15.1, -8]),np.array([16.1, -9]),np.array([19.6, -13]),np.array([20.3, -14]),np.array([22.4, -17]),np.array([23.7, -19]),]",
+                            
+                            "num_eval_weights_for_front": 20,
+                            "num_eval_episodes_for_front": 20,
+                            "eval_freq": 1000,
+                            "reset_num_timesteps": false,
+                            "reset_learning_starts": false,
+                            "verbose": true 
+                        },
+                        "max_grad_norm": 1.0,
+                        "num_sample_w": 4,
+                        "learning_rate": 0.005,
+                        "gamma": 1.0,
+                        "batch_size": 32,
+                        "net_arch": [16, 32, 64, 32],
+                        "buffer_size": 8000,
+                        "initial_epsilon": 0.5,
+                        "final_epsilon": 0.05,
+                        "epsilon_decay_steps": 70000,
+                        "initial_homotopy_lambda": 0.2,
+                        "final_homotopy_lambda": 0.9,
+                        "homotopy_decay_steps": 40000,
+                        "learning_starts": 1000,
+                        "envelope": true,
+                        "gradient_updates": 1,
+                        "target_net_update_freq": 1000,
+                        "tau": 1,
+                        "experiment_name": "envelopeDST_expert"
+                    }
+                },
+
+                "learning_policy_class": "ppo_learner",
+                "learning_policy_kwargs": {
+                    "ppo_learner": {
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 100000,
+                            "discount": 1.0,
+                            "log_interval": 1,
+                            "tb_log_name": "DST_learner",
+                            "callback": null,
+                            "progress_bar": true,
+                            "stochastic": false,
+                            "ref_point": [0.0, -25.0],
+                            "known_pareto_front": "[np.array([0.7, -1]), np.array([8.2, -3]),np.array([11.5, -5]),np.array([14.0, -7]),np.array([15.1, -8]),np.array([16.1, -9]),np.array([19.6, -13]),np.array([20.3, -14]),np.array([22.4, -17]),np.array([23.7, -19]),]",
+                            
+                            "num_eval_weights_for_front": 20,
+                            "num_eval_episodes_for_front": 100,
+                            "reset_num_timesteps": false
+                        },
+                        "policy_kwargs": {
+                        "net_arch": {"pi": [], "vf": []}
+                        },
+                        "policy_class": "MlpPolicy",
+
+                        "learner_policy_class": "PPO",
+                        "learner_policy_kwargs" : 
+                        {
+                            "rollout_buffer_class": "RolloutBufferCustomReward",
+                            "rollout_buffer_kwargs": {
+                                "relabel_experience": true
+                            },
+                            "batch_size": 20,
+                            "n_steps": 1000,
+                            "ent_coef": 0.01,
+                            "learning_rate": 0.001,
+                            "gamma": 1.0,
+                            "gae_lambda": 0.95,
+                            "clip_range": 0.1,
+                            "vf_coef": 0.1,
+                            "n_epochs": 5,
+                            "normalize_advantage": true,
+                            "verbose":false,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_dst/"
+                        }
+                
+                    },
+                    "EnvelopeCustomReward": {
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 100000,
+                            "qualitative_preferences": true,
+                            "ref_point": [0.0, -25.0],
+                            "known_pareto_front": "[np.array([0.7, -1]), np.array([8.2, -3]),np.array([11.5, -5]),np.array([14.0, -7]),np.array([15.1, -8]),np.array([16.1, -9]),np.array([19.6, -13]),np.array([20.3, -14]),np.array([22.4, -17]),np.array([23.7, -19]),]",
+                            
+                            "num_eval_weights_for_front": 50,
+                            "num_eval_episodes_for_front": 100,
+                            "eval_freq": 10000,
+                            "reset_num_timesteps": false,
+                            "reset_learning_starts": false
+                        },
+                        
+                        "per": true,
+                        "per_alpha": 0.6,
+                        "estimated_horizon": 100,
+                        "buffer_with_weights": false,
+
+                        "maintain_original_reward": false,
+                        "max_grad_norm": 1.0,
+                        "num_sample_w": 10,
+                        "learning_rate": 0.0008,
+                        "gamma": 1.0,
+                        "batch_size": 256,
+                        "net_arch": [128, 128, 128],
+                        "buffer_size": 80000,
+                        "initial_epsilon": 0.8,
+                        "final_epsilon": 0.05,
+                        "epsilon_decay_steps": 100000,
+                        "initial_homotopy_lambda": 0.05,
+                        "final_homotopy_lambda": 0.8,
+                        "homotopy_decay_steps": 100000,
+                        "learning_starts": 10000,
+                        "envelope": true,
+                        "gradient_updates": 2,
+                        "target_net_update_freq": 500,
+                        "tau": 0.0002,
+                        "experiment_name": "envelopeDST_learner"
+                    },"EnvelopeCustomReward_old":{
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 100000,
+                            "ref_point": [0.0, -25.0],
+                            "known_pareto_front": "[np.array([0.7, -1]), np.array([8.2, -3]),np.array([11.5, -5]),np.array([14.0, -7]),np.array([15.1, -8]),np.array([16.1, -9]),np.array([19.6, -13]),np.array([20.3, -14]),np.array([22.4, -17]),np.array([23.7, -19]),]",
+                            
+                            "num_eval_weights_for_front": 20,
+                            "num_eval_episodes_for_front": 100,
+                            "eval_freq": 1000,
+                            "reset_num_timesteps": false,
+                            "reset_learning_starts": false
+                        },
+                        "per": true,
+                        "max_grad_norm": 1.0,
+                        "num_sample_w": 4,
+                        "buffer_with_weights": false,
+
+                        "maintain_original_reward": false,
+                        "learning_rate": 0.001,
+                        "gamma": 1.0,
+                        "batch_size": 64,
+                        "net_arch": [16, 32, 64, 32],
+                        "buffer_size": 4000,
+                        "initial_epsilon": 0.5,
+                        "final_epsilon": 0.05,
+                        "epsilon_decay_steps": 70000,
+                        "initial_homotopy_lambda": 0.0,
+                        "final_homotopy_lambda": 0.9,
+                        "homotopy_decay_steps": 40000,
+                        "learning_starts": 1000,
+                        "envelope": true,
+                        "gradient_updates": 1,
+                        "target_net_update_freq": 1000,
+                        "tau": 1,
+                        "experiment_name": "envelopeDST_expert"
+                    }
+                },
+                "optimizer_kwargs": {
+                    "lr": 0.0001,
+                    "lr_grounding": 0.001,
+                    "lr_value_system": 0.005,
+                    "lr_lambda": 0.05,
+                    "initial_lambda": 1.0,
+                    "weight_decay": 0.0001,
+                    "max_grad_norm": 10.0,
+                    "lambda_decay": 0.00005
+                },
+                "optimizer_class": "lagrange",
+                "learn_stochastic_policy": true,
+                "loss_class": "lagrange",
+                "n_rewards_for_ensemble": 1,
+                "loss_kwargs": {
+                    "model_indifference_tolerance": 0.05,
+                    "gr_apply_on_misclassified_pairs_only": false, 
+                    "vs_apply_on_misclassified_pairs_only": false,
+                    "confident_penalty": 0.0,
+                    "cluster_similarity_penalty": 1.0,
+                    "conciseness_penalty_reduction": "mean",
+                    "missclassification_min_weighting": 1.0,
+                    "per_agent": true,
+                    "label_smoothing": 0.1},
+                "_loss_class_options": ["cross_entropy_cluster", "soba", "lagrange"],
+                
+                "train_kwargs": {
+                    "max_iter": 50,
+                    "discount_factor_preferences": 1.0,
+                    "online_policy_update": false,
+                    "lexicographic_vs_first": true,
+                    "em_cycles_per_iteration": 2,
+                    "initial_m_steps_per_cycle": 3,
+                    "batch_size_per_agent": "full",
+                    "m_steps_per_cycle": 3,
+                    "max_assignment_memory": 5,
+                    "mutation_prob": 0.1,
+                    "mutation_scale": 0.1,
+                    "initial_exploration_rate": 0.25,
+                    "policy_train_kwargs": {
+                    }
+                }
+            }
+        }
+    },
+"mine": {
+        "name": "minecart-v0",
+        "n_values": 3,
+        "values_names": ["Achievement", "Tidy", "Sustainability"],
+        "values_short_names": ["Ach", "Tid", "Sus"],
+        "horizon": 500,
+
+        "assume_variable_horizon": true,
+
+
+        "basic_profiles": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        "profiles_colors": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+        "environment_is_stochastic": false,
+        "discount": 0.98,
+        "default_reward_net": {
+            "use_state": true,
+            "use_action": true,
+            "use_next_state": false,
+            "use_done": false,
+            "basic_layer_classes": ["nn.Linear", "nn.Linear", "nn.Linear", "nn.Linear", "ConvexAlignmentLayer"],
+            "activations": ["nn.Tanh", "nn.Tanh", "nn.Tanh", "nn.Tanh", "nn.Identity"],
+            "use_bias": [true, true, true, false, false],
+            "hid_sizes": [50, 100, 50, 3],
+            "negative_grounding_layer": false,
+            "clamp_rewards": false,
+            "normalize_output": false
+        },
+        "reward_feature_extractor": "BaseRewardFeatureExtractor",
+        "default_optimizer_kwargs": {
+            "lr": 0.01,
+            "weight_decay": 0.0000
+        },
+        "default_optimizer_class": "lagrange",
+        "algorithm_config": {
+            "pc": {
+                "debug_mode": true,
+                "reward_net": {},
+
+                "_TRANS_VERSION_default_wrappers": [
+                    {"type": "TransformVectorReward", "kwargs": {
+                            "transform_reward_idxs": [0,1,2],
+                                            "transformer": "lambda x: x/np.array([1.0, 1.0, 10.0], dtype=np.float32)",
+                                            "untransformed_info": false
+                                        }},
+                    
+                    { "type": "MORecordEpisodeStatistics",
+                      "kwargs": {"gamma": 0.98}
+                    }    
+                ],
+                "default_wrappers": [
+                    { "type": "MORecordEpisodeStatistics",
+                      "kwargs": {"gamma": 0.98}
+                    }    
+                ],
+                 "discount_factor": 0.98,
+
+                
+                "expert_policy_class": "ppo_learner",
+                "expert_policy_kwargs": {
+                    "ppo_learner": {
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [{
+                            "type": "NormalizeRewardWrapper",
+                            "kwargs": {}
+                        }],
+                        "stochastic_eval": true,
+                        "train_kwargs": {
+                            "total_timesteps": 300000,
+                            "discount": 0.98,
+                            "log_interval": 1,
+                            "tb_log_name": "MINE_expert",
+                            "callback": null,
+                            "progress_bar": true,
+                            "stochastic": false,
+                            "ref_point": [0.0, 0.0, -200.0],
+                            "known_pareto_front": null,
+                            "num_eval_weights_for_front": 30,
+                            "num_eval_episodes_for_front": 15,
+                            "num_eval_weights_for_eval": 50,
+                            "reset_num_timesteps": false
+                        },
+                        "policy_kwargs": {
+                        "net_arch": {"pi": [256, 256, 256, 256], "vf": [256, 256, 256, 256]}
+                        },
+                        "policy_class": "MlpPolicy",
+
+                        "learner_policy_class": "PPO",
+                        "learner_policy_kwargs" : 
+                        {
+                            "batch_size": 128,
+                            "n_steps": 2048,
+                            "ent_coef": 0.1,
+                            "learning_rate": 0.0002,
+                            "gamma": 0.98,
+                            "gae_lambda": 0.95,
+                            "clip_range": 0.05,
+                            "vf_coef": 0.005,
+                            "n_epochs": 10,
+                            "normalize_advantage": true,
+                            "verbose":true,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_mine/"
+                        }
+                
+                    },
+                    "envelope":{
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 1000000,
+                            "ref_point": [-1,-1,-200],
+                            "known_pareto_front": null,
+                            "num_eval_weights_for_front": 100,
+                            "num_eval_episodes_for_front": 20,
+                            "num_eval_episodes_for_eval": 5,
+                            "num_eval_weights_for_eval": 50,
+                            "eval_freq": 100000000,
+                            "verbose": true,
+                            "reset_num_timesteps": true,
+                            "reset_learning_starts": true
+                        },
+                        "masked": false,
+                        "max_grad_norm": 0.1,
+                        "num_sample_w": 4,
+                        "learning_rate": 3e-4,
+                        "gamma": 0.98,
+                        "batch_size": 64,
+                        "net_arch": [256,256,256,256],
+                        "buffer_size": 2000000,
+                        "initial_epsilon": 1.0,
+                        "final_epsilon": 0.05,
+                        "epsilon_decay_steps": 500000,
+                        "initial_homotopy_lambda": 0.0,
+                        "final_homotopy_lambda": 1.0,
+                        "homotopy_decay_steps": 200000,
+                        "learning_starts": 100,
+                        "envelope": true,
+                        "gradient_updates": 1,
+                        "target_net_update_freq": 2000,
+                        "tau": 1,
+                        "experiment_name": "envelopeMINE_expert"
+                    }
+                },
+
+                "learning_policy_class": "ppo_learner",
+                "learning_policy_kwargs": {
+                    "ppo_learner": {
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [{
+                            "type": "NormalizeRewardWrapper",
+                            "kwargs": {}
+                        }],
+                        "stochastic_eval": true,
+                        "train_kwargs": {
+                            "total_timesteps": 350000,
+                            "discount": 0.98,
+                            "log_interval": 1,
+                            "tb_log_name": "MINE_learner",
+                            "callback": null,
+                            "progress_bar": true,
+                            "stochastic": false,
+                            "ref_point": [0.0, 0.0, -200.0],
+                            "known_pareto_front": null,
+                            "num_eval_weights_for_front": 100,
+                            "num_eval_episodes_for_front": 20,
+                            "num_eval_weights_for_eval": 50,
+                            "reset_num_timesteps": false
+                        },
+                        "policy_kwargs": {
+                        "net_arch": {"pi": [256, 256, 256, 256], "vf": [256, 256, 256, 256]}
+                        },
+                        "policy_class": "MlpPolicy",
+
+                        "learner_policy_class": "PPO",
+                        "learner_policy_kwargs" : 
+                        {
+
+                        "rollout_buffer_class": "RolloutBufferCustomReward",
+                        "rollout_buffer_kwargs": {
+                            "relabel_experience": true
+                        },
+                            "batch_size": 128,
+                            "n_steps": 2048,
+                            "ent_coef": 0.08,
+                            "learning_rate": 0.0002,
+                            "gamma": 0.98,
+                            "gae_lambda": 0.95,
+                            "clip_range": 0.05,
+                            "vf_coef": 0.006,
+                            "n_epochs": 10,
+                            "normalize_advantage": true,
+                            "verbose":true,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_learner_mine/"
+                        }
+                
+                    },
+                    "EnvelopeCustomReward":{
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 1000000,
+                            "ref_point": [-1,-1,-200],
+                            "known_pareto_front": null,
+                            "num_eval_weights_for_front": 100,
+                            "num_eval_episodes_for_front": 20,
+                            "num_eval_episodes_for_eval": 5,
+                            "num_eval_weights_for_eval": 50,
+                            "eval_freq": 1000,
+                            "verbose": true,
+                            "reset_num_timesteps": true,
+                            "reset_learning_starts": true
+                        },
+                        "masked": false,
+                        "per": false,
+                        "buffer_with_weights": false,
+
+                        "maintain_original_reward": false,
+                        "max_grad_norm": 0.1,
+                        "num_sample_w": 4,
+                        "learning_rate": 3e-4,
+                        "gamma": 0.98,
+                        "batch_size": 64,
+                        "net_arch": [256,256,256,256],
+                        "buffer_size": 2000000,
+                        "initial_epsilon": 1.0,
+                        "final_epsilon": 0.05,
+                        "epsilon_decay_steps": 500000,
+                        "initial_homotopy_lambda": 0.0,
+                        "final_homotopy_lambda": 1.0,
+                        "homotopy_decay_steps": 200000,
+                        "learning_starts": 100,
+                        "envelope": true,
+                        "gradient_updates": 1,
+                        "target_net_update_freq": 2000,
+                        "tau": 1,
+                        "experiment_name": "envelopeMINE_learner"
+                    }
+                },
+                "optimizer_kwargs": {
+                    "lr": 0.0001,
+                    "lr_grounding": 0.0005,
+                    "lr_value_system": 0.003,
+                    "lr_lambda": 0.3,
+                    "initial_lambda": 1.0,
+                    "weight_decay": 0.0001,
+                    "max_grad_norm": 10.0,
+                    "lambda_decay": 0.00005
+                },
+                "optimizer_class": "lagrange",
+                "learn_stochastic_policy": true,
+                "loss_class": "lagrange",
+                "n_rewards_for_ensemble": 1,
+                "loss_kwargs": {
+                    "model_indifference_tolerance": 0.05,
+                    "gr_apply_on_misclassified_pairs_only": false, 
+                    "vs_apply_on_misclassified_pairs_only": false,
+                    "confident_penalty": 5.0,
+                    "cluster_similarity_penalty": 5.0,
+                    "conciseness_penalty_reduction": "min",
+                    "missclassification_min_weighting": 1.0,
+                    "label_smoothing": 0.0},
+                "_loss_class_options": ["cross_entropy_cluster", "soba", "lagrange"],
+                
+                "train_kwargs": {
+                    "max_iter": 200,
+                    "discount_factor_preferences": 0.98,
+                    "online_policy_update": false,
+                    "lexicographic_vs_first": true,
+                    "em_cycles_per_iteration": 3,
+                    "initial_m_steps_per_cycle": 10,
+                    "batch_size_per_agent": "full",
+                    "m_steps_per_cycle": 4,
+                    "max_assignment_memory": 8,
+                    "mutation_prob": 0.1,
+                    "mutation_scale": 0.1,
+                    "initial_exploration_rate": 0.3,
+                    "policy_train_kwargs": {
+                        
+                    }
+                }
+            }
+        }
+    },
+"ffmo": {
+        "name": "FireFightersMO-v0",
+        "n_values": 2,
+        "values_names": ["Professionalism", "Proximity"],
+        "values_short_names": ["Prof", "Prox"],
+        "horizon": 50,
+
+        "assume_variable_horizon": false,
+        
+        
+        "basic_profiles": [[1.0, 0.0], [0.0,1.0]],
+        "profiles_colors": [[1,0,0], [0,0,1]],
+        "feature_selection": "features_one_hot",
+        "initial_state_distribution": "fixed",
+        "environment_is_stochastic": false,
+        "discount": 1.0,
+        "default_reward_net": {
+            "use_state": true,
+            "use_action": true,
+            "use_next_state": false,
+            "use_done": false,
+            "basic_layer_classes": ["nn.Linear", "nn.Linear", "nn.Linear", "ConvexAlignmentLayer"],
+            "activations": ["nn.Tanh", "nn.Tanh", "nn.Tanh", "nn.Identity"],
+            "use_bias": [true, true, false, false],
+            "hid_sizes": [50, 100, 50],
+            "negative_grounding_layer": false,
+            "clamp_rewards": false,
+
+            "normalize_output": false
+        },
+        "reward_feature_extractor": "BaseRewardFeatureExtractor",
+        "_options_for_feature_extractors": ["BaseRewardFeatureExtractor", "ObservationMatrixFeatureExtractor"],
+        "default_optimizer_kwargs": {
+            "lr": 0.01,
+            "weight_decay": 0.0000
+        },
+        "default_optimizer_class": "lagrange",
+        "algorithm_config": {
+            "pc": {
+                "debug_mode": true,
+                "reward_net": {},
+                "default_wrappers": [
+                    {
+                        "type": "FlattenObservation",
+                        "kwargs": {}
+                    }
+                    
+                ],
+                
+                
+                "discount_factor": 1.0,
+
+                "expert_policy_class": "ppo_learner",
+                "expert_policy_kwargs": {
+                    "ppo_learner": {
+                        "eval_extra_wrappers": [],
+                        "__train_extra_wrappers": [{
+                            "type": "NormalizeRewardWrapper",
+                            "kwargs": {}
+                        }],
+                        "train_kwargs": {
+                            "total_timesteps": 100000,
+                            "discount": 1.0,
+                            "log_interval": 1,
+                            "tb_log_name": "FFMO_expert1",
+                            "callback": null,
+                            "progress_bar": true,
+                            "stochastic": false,
+                            "ref_point": [-50.0, -50.0],
+                            "known_pareto_front": "[[4.6, 5.4],[5.7, 5.3],[5.9, 5.1],[6.7, 5. ],[6.8, 4.6],[7.6, 4.5],[7.8, 4. ]]",
+                            
+                            
+                            "num_eval_weights_for_front": 20,
+                            "num_eval_episodes_for_front": 100,
+                            "reset_num_timesteps": false
+                        },
+                        "policy_kwargs": {
+                        "net_arch": {"pi": [256, 256, 256], "vf": [256, 256, 256]}
+                        },
+                        "policy_class": "MlpPolicy",
+
+                        "learner_policy_class": "PPO",
+                        "learner_policy_kwargs" : 
+                        {
+                            "batch_size": 50,
+                            "n_steps": 500,
+                            "ent_coef": 0.05,
+                            "learning_rate": 0.0001,
+                            "gamma": 1.0,
+                            "gae_lambda": 0.95,
+                            "clip_range": 0.03,
+                            "vf_coef": 0.15,
+                            "verbose": true,
+                            "n_epochs": 3,
+                            "normalize_advantage": true,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_ffmo/"
+                        }
+                
+                    },
+                    "envelope":{
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+
+                        "__vectorizer": {
+                            "type": "DummyVecEnv",
+                            "kwargs": {
+                                "num_envs": 5
+                            }
+                        },
+                        "train_kwargs": {
+                            "total_timesteps": 120000,
+                            "ref_point": [-50, -50],
+                            "known_pareto_front": "[[4.6, 5.4],[5.7, 5.3],[5.9, 5.1],[6.7, 5. ],[6.8, 4.6],[7.6, 4.5],[7.8, 4. ]]",
+                            "num_eval_weights_for_front": 50,
+                            "num_eval_episodes_for_front": 50,
+                            "eval_freq": 10000,
+                            "reset_num_timesteps": false,
+                            "reset_learning_starts": false,
+                            "verbose": true
+                        },
+                        "max_grad_norm": 0.1,
+                        "learning_rate": 0.0005,
+                        "gamma": 0.999,
+                        "num_sample_w": 11,
+                        "batch_size": 32,
+                        "net_arch": [256, 128, 128, 128],
+                        "buffer_size": 100000,
+                        "initial_epsilon": 0.5,
+                        "final_epsilon": 0.0,
+                        "epsilon_decay_steps": 100000,
+                        "initial_homotopy_lambda": 0.0,
+                        "final_homotopy_lambda": 1.0,
+                        "homotopy_decay_steps": 100000,
+                        "learning_starts": 1000,
+                        "envelope": true,
+                        "gradient_updates": 1,
+                        "target_net_update_freq": 1500,
+                        "tau": 1,
+                        "experiment_name": "envelopeFF_expert"
+                    }
+                },
+
+                "learning_policy_class": "EnvelopeCustomReward",
+                "learning_policy_kwargs": {
+                    "EnvelopeCustomReward":{
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 120000,
+                            "ref_point": [-50, -50],
+                            "known_pareto_front": "[[4.6, 5.4],[5.7, 5.3],[5.9, 5.1],[6.7, 5. ],[6.8, 4.6],[7.6, 4.5],[7.8, 4. ]]",
+                            "num_eval_weights_for_front": 50,
+                            "num_eval_episodes_for_front": 50,
+                            "eval_freq": 10000,
+                            "reset_num_timesteps": false,
+                            "reset_learning_starts": false,
+                            "verbose": true
+                        },
+
+                        "maintain_original_reward": false,
+                        "max_grad_norm": 0.1,
+                        "learning_rate": 0.0005,
+                        "buffer_with_weights": false,
+                        "per": true,
+                        "per_alpha": 0.6,
+                        "gamma": 1.0,
+                        "num_sample_w": 11,
+                        "batch_size": 32,
+                        "net_arch": [256, 128, 128, 128],
+                        "buffer_size": 100000,
+                        "initial_epsilon": 0.5,
+                        "final_epsilon": 0.0,
+                        "epsilon_decay_steps": 100000,
+                        "initial_homotopy_lambda": 0.0,
+                        "final_homotopy_lambda": 1.0,
+                        "homotopy_decay_steps": 100000,
+                        "learning_starts": 10000,
+                        "envelope": true,
+                        "gradient_updates": 1,
+                        "target_net_update_freq": 1500,
+                        "tau": 1,
+                        "experiment_name": "envelopeFF_learner"
+                    },
+                    "ppo_learner": {
+                        "eval_extra_wrappers": [],
+                        "__train_extra_wrappers": [{
+                            "type": "NormalizeRewardWrapper",
+                            "kwargs": {}
+                        }],
+                        "train_kwargs": {
+                            "total_timesteps": 200000,
+                            "discount": 1.0,
+                            "log_interval": 1,
+                            "tb_log_name": "FFMO_learner1",
+                            "callback": null,
+                            "progress_bar": true,
+                            "stochastic": false,
+                            "ref_point": [-50.0, -50.0],
+                            "known_pareto_front": "[[4.6, 5.4],[5.7, 5.3],[5.9, 5.1],[6.7, 5. ],[6.8, 4.6],[7.6, 4.5],[7.8, 4. ]]",
+                            
+                            
+                            "num_eval_weights_for_front": 50,
+                            "num_eval_episodes_for_front": 50,
+                            "reset_num_timesteps": false
+                        },
+                        "policy_kwargs": {
+                        "net_arch": {"pi": [256, 256, 256], "vf": [256, 256, 256]}
+                        },
+                        "policy_class": "MlpPolicy",
+
+                        "learner_policy_class": "PPO",
+                        "learner_policy_kwargs" : 
+                        {
+                            "rollout_buffer_class": "RolloutBufferCustomReward",
+                            "rollout_buffer_kwargs": {
+                                "relabel_experience": true
+                            },
+                            "batch_size": 50,
+                            "n_steps": 500,
+                            "ent_coef": 0.05,
+                            "learning_rate": 0.0005,
+                            "gamma": 1.0,
+                            "gae_lambda": 0.95,
+                            "clip_range": 0.01,
+                            "vf_coef": 0.1,
+                            "verbose": true,
+                            "n_epochs": 3,
+                            "normalize_advantage": true,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_learner_ffmo/"
+                        }
+                
+                    }
+
+                },
+
+                "optimizer_kwargs": {
+                    "lr": 0.0001,
+                    "lr_grounding": 0.0001,
+                    "lr_value_system": 0.004,
+                    "lr_lambda": 0.05,
+                    "initial_lambda": 1.0,
+                    "weight_decay": 0.0003,
+                    "max_grad_norm": 1.0,
+                    "lambda_decay": 0.0001
+                },
+                "optimizer_class": "lagrange",
+                "learn_stochastic_policy": true,
+                "loss_class": "lagrange",
+                "n_rewards_for_ensemble": 1,
+                "loss_kwargs": {
+                    "model_indifference_tolerance": 0.05,
+                    "gr_apply_on_misclassified_pairs_only": false, 
+                    "vs_apply_on_misclassified_pairs_only": false,
+                    "confident_penalty": 0.0,
+                    "cluster_similarity_penalty": 1.0,
+                    "conciseness_penalty_reduction": "mean",
+                    "missclassification_min_weighting": 1.0, 
+                    "per_agent": true,   
+                    "label_smoothing": 0.1},
+                "_loss_class_options": ["cross_entropy_cluster", "soba", "lagrange"],
+                
+                "train_kwargs": {
+                    "max_iter": 200,
+                    "discount_factor_preferences": 1.0,
+                    
+                    "online_policy_update": false,
+                    "lexicographic_vs_first": true,
+                    "em_cycles_per_iteration": 3,
+                    "initial_m_steps_per_cycle": 5,
+                    "batch_size_per_agent": "full",
+                    "m_steps_per_cycle": 3,
+                    "max_assignment_memory": 5,
+                    "mutation_prob": 0.1,
+                    "mutation_scale": 0.15,
+                    "initial_exploration_rate": 0.3,
+                    "policy_train_kwargs": {
+                        
+                    }
+                }
+
+                
+            }
+        }
+    }
+    ,
+"moral": {
+        "name": "env-MORAL-v0",
+        "n_values": 3,
+        "values_names": ["Deliver", "Help", "Clean"],
+        "values_short_names": ["Del", "Hel", "Cle"],
+        "horizon": 100,
+
+        "assume_variable_horizon": true,
+        
+        
+        "basic_profiles": [[1.0, 0.0, 0.0], 
+        [0.0, 1.0, 0.0], 
+        [0.0, 0.0, 1.0]],
+        "profiles_colors": [[1,0,0], [0,0,1], [0,1,0]],
+        "feature_selection": "features_one_hot",
+        "initial_state_distribution": "fixed",
+        "environment_is_stochastic": false,
+        "discount": 0.999,
+        "default_reward_net": {
+            "use_state": true,
+            "use_action": true,
+            "use_next_state": false,
+            "use_done": false,
+            "basic_layer_classes": ["nn.Linear", "nn.Linear", "nn.Linear", "nn.Linear", "ConvexAlignmentLayer"],
+            "activations": ["nn.Tanh", "nn.Tanh", "nn.Tanh", "nn.Tanh", "nn.Identity"],
+            "use_bias": [true, true, true, false, false],
+            "hid_sizes": [50, 100, 50, 3],
+            "negative_grounding_layer": false,
+            "clamp_rewards": false
+        },
+        "reward_feature_extractor": "BaseRewardFeatureExtractor",
+        "_options_for_feature_extractors": ["FeatureExtractorFromVAEnv", "OneHotFeatureExtractor", "ObservationMatrixFeatureExtractor"],
+        "default_optimizer_kwargs": {
+            "lr": 0.01,
+            "weight_decay": 0.0000
+        },
+        "default_optimizer_class": "lagrange",
+        "algorithm_config": {
+            "pc": {
+                "debug_mode": true,
+                "reward_net": {},
+                "default_wrappers": [
+                    {
+                        "type": "FlattenObservation",
+                        "kwargs": {}
+                    },
+                    {
+                        "type": "MORecordEpisodeStatistics",
+                        "kwargs": {
+                            "gamma": 1.0
+                        }
+                        
+                    }
+                    
+                ],
+                "optimizer_kwargs": {
+                    "lr": 0.01,
+                    "lr_grounding": 0.002,
+                    "lr_value_system": 0.004,
+                    "lr_lambda": 0.1,
+                    "initial_lambda": 1.0,
+                    "weight_decay": 0.0000,
+                    "lambda_decay": 0.005
+                },
+                "optimizer_class": "lagrange",
+                "learn_stochastic_policy": true,
+                "loss_class": "lagrange",
+                "loss_kwargs": {
+                    "model_indifference_tolerance": 0.0,
+                    "gr_apply_on_misclassified_pairs_only": false, 
+                    "vs_apply_on_misclassified_pairs_only": false,
+                    "confident_penalty": 5.0,
+                    "cluster_similarity_penalty": 1.0,
+                    "conciseness_penalty_reduction": "min",
+                    "label_smoothing": 0.0},
+                "_loss_class_options": ["cross_entropy_cluster", "soba", "lagrange"],
+                "discount_factor_preferences": 0.999, "discount_factor": 0.999,
+
+                "expert_policy_class": "envelope",
+                "expert_policy_kwargs": {
+                    
+                    "envelope":{
+                        "__extra_wrappers": [{"type": "TransformVectorReward", "kwargs": {
+                            "transform_reward_idxs": [0,1,2],
+                                            "transformer": "lambda x: x/np.array([1.0, 127.03, 112.68], dtype=np.float32)",
+                                            "untransformed_info": false
+                                        }}
+                                    ],
+                        "train_kwargs": {
+                            "total_timesteps": 400000,
+                            "ref_point": [0.0, -750.0, -750.0],
+                            "known_pareto_front": null,
+                            "num_eval_weights_for_front": 50,
+                            "num_eval_episodes_for_front": 20,
+                            "num_eval_weights_for_eval": 22,
+                            "eval_freq": 20000,
+                            "reset_num_timesteps": true,
+                            "reset_learning_starts": true
+                        },
+                        "max_grad_norm": 0.5,
+                        "learning_rate": 0.0001,
+                        
+                        "gamma": 0.999,
+                        "batch_size": 128,
+                        "num_sample_w": 4,
+                        "net_arch": [128, 128, 128, 128],
+                        "buffer_size": 1000000,
+                        "initial_epsilon": 0.8,
+                        "final_epsilon": 0.05,
+                        "epsilon_decay_steps": 200000,
+                        "initial_homotopy_lambda": 0.0,
+                        "final_homotopy_lambda": 1.0,
+                        "homotopy_decay_steps": 100000,
+                        "learning_starts": 10000,
+                        "envelope": true,
+                        "gradient_updates": 1,
+                        "target_net_update_freq": 2000,
+                        "tau": 1,
+                        "experiment_name": "envelopeMORAL_expert"
+                    },
+                    "ppo_learner": {
+                        "eval_extra_wrappers": [],
+                        "__train_extra_wrappers": [{
+                            "type": "NormalizeRewardWrapper",
+                            "kwargs": {}
+                        }],
+                        "stochastic_eval": true,
+                        "train_kwargs": {
+                            "total_timesteps": 900000,
+                            "discount": 0.999,
+                            "log_interval": 1,
+                            "tb_log_name": "MORALMO_expert1",
+                            "callback": null,
+                            "progress_bar": true,
+                            "stochastic": false,
+                            "ref_point": [0.0, -750.0, -750.0],
+                            "known_pareto_front": null,
+                            
+                            "num_eval_weights_for_front": 20,
+                            "num_eval_episodes_for_front": 100,
+                            "reset_num_timesteps": true
+                        },
+                        "policy_kwargs": {
+                        
+                        "net_arch": {"pi": [64, 256, 256, 32], "vf": [64, 256, 256, 32]}
+                        },
+                        "policy_class": "MlpPolicy",
+                        "_policy_class_options": ["MaskedPolicySimple", "MlpPolicy"],
+                        "learner_policy_class": "PPO",
+                        "learner_policy_kwargs" :  
+                        {
+                            "batch_size": 128,
+                            "n_steps": 1024,
+                            "ent_coef": 0.25,
+                            "learning_rate": 0.0001,
+                            "gamma": 0.999,
+                            "gae_lambda": 0.95,
+                            "clip_range": 0.01,
+                            "vf_coef": 1.0,
+                            "n_epochs": 5,
+                            "verbose": true,
+                            "normalize_advantage": false,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_moral/"
+                        },
+                        "_original_moral_config": {
+                            "env_steps": 9e6,
+                            "batchsize_ppo": 12,
+                            "n_workers": 12,
+                            "lr_ppo": 3e-4,
+                            "entropy_reg": 0.05,
+                            "lambd": [0, 0, 1, 1],
+                            "gamma": 0.999,
+                            "epsilon": 0.1,
+                            "ppo_epochs": 5
+                        }
+
+                
+                    }
+                },
+
+                "learning_policy_class": "PCN_CUSTOM_REWARD",
+                "learning_policy_kwargs": {
+                },
+
+                "use_quantified_preference": false,
+                "preference_sampling_temperature": 0,
+                "query_schedule": "constant",
+                "train_kwargs": {
+                    "max_iter": 200,
+                    "em_cycles_per_iteration": 3,
+                    "refining_steps_after_cluster_assignment": 2,
+                    
+                    "initial_refining_steps": 3,
+                    "initial_exploration_rate": 0.3,
+                    "batch_size": "full",
+                    "mutation_prob": 0.05,
+                    "mutation_scale": 0.1,
+                    "max_assignment_memory": 5,
+                    "policy_train_kwargs": {
+                        "total_timesteps": 10000
+                    }
+                }
+
+                
+            }
+        }
+    }
+    ,
+"rw": {
+        "name": "RoadWorldEnvMO-v0",
+        "n_values": 3,
+        "horizon": 80,
+        "assume_variable_horizon": true,
+        
+        "basic_profiles": [[1.0, 0.0, 0.0], [0.0,1.0, 0.0], [0.0, 0.0, 1.0]],
+        "profiles_colors": [[1,0,0], [0,0,1], [0,1,0]],
+        "values_names": ["Sustainability", "Comfort", "Efficiency"],
+        "values_short_names": ["Sus", "Comf", "Eff"],
+        "feature_selection": ["default"],
+        "feature_preprocessing": "norm",
+        "destination_method": "full_random",
+        "masked": true,
+        "environment_is_stochastic": false,
+        "discount": 1.0,
+        
+        "default_reward_net": {
+            "use_state": false,
+            "use_action": false,
+            "use_next_state": true,
+            "use_done": false,
+            "basic_layer_classes": ["nn.Linear", "nn.Linear","ConvexAlignmentLayer"],
+            "activations": ["nn.Tanh","nn.Softplus", "nn.Identity"],
+            "use_bias": [true, true, false],
+            "hid_sizes": [80,80],
+            "negative_grounding_layer": true,
+            "clamp_rewards": false
+        },
+        "reward_feature_extractor": "BaseRewardFeatureExtractor",
+        "default_optimizer_kwargs": {
+            "lr": 0.001,
+            "weight_decay": 0.0000
+        },
+        "default_optimizer_class": "lagrange",
+        "algorithm_config": {
+            "pc": {
+                "debug_mode": true,
+                "reward_net": {},
+                "optimizer_kwargs": {
+                    "lr": 0.01,
+                    "lr_grounding": 0.001,
+                    "lr_value_system": 0.002,
+                    "lr_lambda": 0.01,
+                    "initial_lambda": 0.5,
+                    "weight_decay": 0.0000,
+                    "lambda_decay": 5e-9
+                },
+                "optimizer_class": "lagrange",
+                "learn_stochastic_policy": false,
+                "loss_class": "lagrange",
+                "loss_kwargs": {
+                    "model_indifference_tolerance": 0.0,
+                    "gr_apply_on_misclassified_pairs_only": false, 
+                    "vs_apply_on_misclassified_pairs_only": false,
+                    "confident_penalty": 5.0,
+                    "cluster_similarity_penalty": 1.0,
+                    "conciseness_penalty_reduction": "min",
+                    "label_smoothing": 0.0},
+                "_loss_class_options": ["cross_entropy_cluster", "soba", "lagrange"],
+                "discount_factor_preferences": 1.0, "discount_factor": 1.0,
+                "default_wrappers": [
+                    { "type": "MORecordEpisodeStatistics",
+                "kwargs": {"gamma": 1.0}}
+                ],
+                "expert_policy_class": "envelope",
+                "expert_policy_kwargs": {
+                    "envelope":{
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 600000,
+                            "__total_timesteps_old": 1500000,
+                            "ref_point": [-300.0, -300.0, -300.0],
+                            "known_pareto_front": null,
+                            "num_eval_weights_for_front": 11,
+                            "num_eval_episodes_for_front": 100,
+                            "num_eval_weights_for_eval": 11,
+                            "eval_freq": 50000,
+                            "reset_num_timesteps": true,
+                            "reset_learning_starts": true,
+                            "verbose": true
+                        },
+                        "masked": true,
+                        "per": true,
+                        "activation": "leakyrelu",
+                        "per_alpha": 0.6,
+                        "max_grad_norm": 10.0,
+                        "learning_rate": 0.0003,
+                        "_learning_rate_unmask": 0.0001,
+                        "gamma": 1.0,
+                        "num_sample_w": 10,
+                        "batch_size": 40,
+                        "net_arch": [128, 128, 128, 128],
+                        "buffer_size": 100000,
+                        "initial_epsilon": 0.5,
+                        "final_epsilon": 0.05,
+                        "epsilon_decay_steps": 500000,
+                        "initial_homotopy_lambda": 0.4,
+                        "final_homotopy_lambda": 0.95,
+                        "homotopy_decay_steps": 500000,
+                        "learning_starts": 1000,
+                        "envelope": true,
+                        "gradient_updates": 1,
+                        "target_net_update_freq": 2000,
+                        "tau": 1.0,
+                        "experiment_name": "envelopeRW_expert"
+                    },
+                    "ppo_learner": {
+                        "eval_extra_wrappers": [],
+                        "__train_extra_wrappers": [{
+                            "type": "NormalizeRewardWrapper",
+                            "kwargs": {}
+                        }],
+                        "stochastic_eval": true,
+                        "train_kwargs": {
+                            "total_timesteps": 10,
+                            "__total_timesteps": 500000,
+                            "discount": 1.0,
+                            "log_interval": 1,
+                            "tb_log_name": "RWMO_expert1",
+                            "callback": null,
+                            "progress_bar": true,
+                            "stochastic": false,
+                            "ref_point": [-100.0, -100.0, -100.0],
+                            "known_pareto_front": null,
+                            
+                            "num_eval_weights_for_front": 20,
+                            "num_eval_episodes_for_front": 100,
+                            "reset_num_timesteps": true
+                        },
+                        "policy_kwargs": {
+                        
+                        "net_arch": {"pi": [256, 256, 256, 256], "vf": [256, 256, 256, 256]}
+                        },
+                        "policy_class": "MaskedPolicySimple",
+                        "_policy_class_options": ["MaskedPolicySimple", "MlpPolicy"],
+                        "learner_policy_class": "PPO",
+                        "learner_policy_kwargs" :  
+                        {
+                            "batch_size": 40,
+                            "n_steps": 2000,
+                            "ent_coef": 0.001,
+                            "learning_rate": 0.0001,
+                            "gamma": 1.0,
+                            "gae_lambda": 0.95,
+                            "clip_range": 0.05,
+                            "vf_coef": 0.003,
+                            "n_epochs": 3,
+                            "verbose": true,
+                            "normalize_advantage": false,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_rw/"
+                        },
+                        "_learner_policy_kwargs_fr" :  
+                        {
+                            "batch_size": 200,
+                            "n_steps": 3000,
+                            "ent_coef": 0.001,
+                            "learning_rate": 0.0001,
+                            "gamma": 1.0,
+                            "gae_lambda": 0.95,
+                            "clip_range": 0.05,
+                            "vf_coef": 0.003,
+                            "n_epochs": 3,
+                            "verbose": true,
+                            "normalize_advantage": false,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_rw/"
+                        },
+                        "_learner_policy_kwargs_normal" :  
+                        {
+                            "batch_size": 200,
+                            "n_steps": 1500,
+                            "ent_coef": 0.01,
+                            "learning_rate": 0.0003,
+                            "gamma": 1.0,
+                            "gae_lambda": 0.95,
+                            "clip_range": 0.05,
+                            "vf_coef": 0.0008,
+                            "n_epochs": 4,
+                            "verbose": true,
+                            "normalize_advantage": false,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_rw/"
+                        }
+                
+                    }
+                },
+                "learning_policy_class": "ppo_learner",
+                "learning_policy_kwargs": {
+                    "ppo_learner": {
+                        "eval_extra_wrappers": [],
+                        "__train_extra_wrappers": [{
+                            "type": "NormalizeRewardWrapper",
+                            "kwargs": {}
+                        }],
+                        "train_kwargs": {
+                            "total_timesteps": 100000,
+                            "discount": 1.0,
+                            "log_interval": 1,
+                            "tb_log_name": "FFMO_learner1",
+                            "callback": null,
+                            "progress_bar": true,
+                            "stochastic": true,
+                            "ref_point": [-50.0, -50.0],
+                            "known_pareto_front": null,
+                            
+                            "num_eval_weights_for_front": 20,
+                            "num_eval_episodes_for_front": 100,
+                            "reset_num_timesteps": false
+                        },
+                        "policy_kwargs": {
+                        "net_arch": {"pi": [64, 64, 8], "vf": [64, 64, 8]}
+                        },
+                        "policy_class": "MlpPolicy",
+
+                        "learner_policy_class": "PPO",
+                        "learner_policy_kwargs" :  
+                        {
+                            "batch_size": 25,
+                            "n_steps": 50,
+                            "ent_coef": 0.1,
+                            "learning_rate": 0.02,
+                            "gamma": 1.0,
+                            "gae_lambda": 0.999,
+                            "clip_range": 0.05,
+                            "vf_coef": 0.01,
+                            
+                            "n_epochs": 5,
+                            "normalize_advantage": true,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_rw/"
+                        }
+                
+                    }
+                },
+                "use_quantified_preference": false,
+                "preference_sampling_temperature": 0,
+                "query_schedule": "constant",
+                "reward_env_wrappers": [
+                    {
+                        "type": "FilterObservation",
+                        "kwargs": {
+                            "filter_keys": [0,1,2]
+                        }
+                    }
+                ],
+                "train_kwargs": {
+                    "max_iter": 100,
+                    "trajectory_batch_size": "full",
+                    "fragment_length": "horizon",
+                    "comparisons_per_agent_per_step": null,
+
+                    "max_assignment_memory": 7
+                },
+
+                
+                "reward_trainer_kwargs": {
+                    "epochs": 3,
+                    "refining_steps_after_cluster_assignment": 3,
+                    
+                    "initial_refining_steps": 12,
+                    "initial_exploration_rate": 0.4,
+                    "batch_size": "full",
+                    "inner_k_fold_validation_divisions_per_epoch": null
+                }
+            }
+        }
+    },
+"mvc": {
+        "name": "MultiValuedCarEnv-v0",
+        "n_values": 3,
+        "horizon": 40,
+
+        
+
+        "assume_variable_horizon": false,
+        
+        "basic_profiles": [[1.0, 0.0, 0.0], [0.0,1.0, 0.0], [0.0, 0.0, 1.0]],
+        "profiles_colors": [[1,0,0], [0,0,1], [0,1,0]],
+        "values_names": ["Achievement", "Comfort", "Safety"],
+        "values_short_names": ["Achv", "Comf", "Safe"],
+        "feature_selection": "features_one_hot",
+        "environment_is_stochastic": true,
+        "discount": 0.99,
+        
+        "default_reward_net": {
+            "use_state": true,
+            "use_action": true,
+            "use_next_state": false,
+            "use_done": false,
+            "basic_layer_classes": ["nn.Linear", "nn.Linear", "nn.Linear", "nn.Linear", "ConvexAlignmentLayer"],
+            "activations": ["nn.Tanh", "nn.Tanh", "nn.Tanh", "nn.Identity", "nn.Identity"],
+            "use_bias": [true, true, true, false, false],
+            "hid_sizes": [36,36,36, 3],
+            "negative_grounding_layer": false,
+            "clamp_rewards": [-80.0, 80.0],
+            "normalize_output": true
+        },
+        "reward_feature_extractor": "BaseRewardFeatureExtractor",
+        "default_optimizer_kwargs": {
+            "lr": 0.001,
+            "weight_decay": 0.0000
+        },
+        "default_optimizer_class": "lagrange",
+        "algorithm_config": {
+            "pc": {
+                "debug_mode": true,
+                "reward_net": {},
+                "discount_factor": 0.99,
+
+                
+                "use_quantified_preference": false,
+                "preference_sampling_temperature": 0,
+                
+                "query_schedule": "constant",
+                "default_wrappers": [{ "type": "MORecordEpisodeStatistics",
+                      "kwargs": {"gamma": 0.98}
+                    }]    ,
+                "expert_policy_class": "envelope",
+                "expert_policy_kwargs": {
+                    "envelope":{
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 150000,
+                            "ref_point": [-200.0, -100.0, -100.0],
+                            "stochastic": true,
+                            "known_pareto_front": null,
+                            "num_eval_weights_for_front": 50,
+                            "num_eval_episodes_for_front": 100,
+                            "num_eval_weights_for_eval": 11,
+                            "eval_freq": 50000,
+                            "reset_num_timesteps": true,
+                            "reset_learning_starts": true,
+                            "verbose": true
+                        },
+                        "masked": false,
+                        "per": true,
+                        "per_alpha": 0.6,
+                        
+                        "max_grad_norm": 10.0,
+                        "learning_rate": 0.0003,
+                        "_learning_rate_unmask": 0.0001,
+                        "gamma": 0.99,
+                        "num_sample_w": 10,
+                        "batch_size": 128,
+                        "net_arch": [128, 128, 128],
+                        "buffer_size": 500000,
+                        "initial_epsilon": 0.8,
+                        "final_epsilon": 0.05,
+                        "epsilon_decay_steps": 150000,
+                        "initial_homotopy_lambda": 0.0,
+                        "final_homotopy_lambda": 0.9,
+                        "homotopy_decay_steps": 150000,
+                        "learning_starts": 500,
+                        "envelope": true,
+                        "gradient_updates": 2,
+                        "target_net_update_freq": 1000,
+                        "tau": 1.0,
+                        "experiment_name": "envelopeMVC_expert"
+                    },
+                    "CustomPolicy":{
+                        "policy_approximation_method": "custom_policy_approximation",
+                        "_policy_approximation_method_options": ["mce_original", 
+                        "new_value_iteration", "use_learner_class", "custom_policy_approximation"],
+                        "discount": 0.99,
+                        "expose_state": false, "use_checkpoints": false,
+                        "assume_env_produce_state": false,
+                        "approximator_kwargs": {"value_iteration_tolerance": 0.0000001, "iterations": 2000},
+                        
+                        "use_expert_grounding": true
+                    },"ppo_learner": {
+                        "policy_kwargs": {
+                        "net_arch": {"pi": [64,64,64], "vf": [64,64,64]}
+                        },
+                        "train_kwargs": {
+                            "total_timesteps": 200000,
+                            "discount": 0.99,
+                            "log_interval": 1,
+                            "tb_log_name": "MVC_expert1",
+                            "callback": null,
+                            "progress_bar": true,
+                            "stochastic": true,
+                            "ref_point": [-200.0, -100.0, -100.0],
+                            "known_pareto_front": null,
+                            "num_eval_weights_for_front": 20,
+                            "num_eval_episodes_for_front": 100,
+                            "reset_num_timesteps": true
+                        },
+                        "policy_class": "MlpPolicy",
+
+                        "learner_policy_class": "PPO",
+                        "stochastic_eval": true,
+                        "learner_policy_kwargs" : 
+                        {
+                            "batch_size": 40,
+                            "verbose": true,
+                            "n_steps": 2000,
+                            "ent_coef": 0.01,
+                            "learning_rate": 0.0003,
+                            "gamma": 0.99,
+                            "gae_lambda": 0.999,
+                            "clip_range": 0.05,
+                            "vf_coef": 0.05,
+                            "n_epochs": 5,
+                            "normalize_advantage": true,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_mvc/"
+                        }
+                    }
+                },
+                "learning_policy_class": "ppo_learner",
+                "learning_policy_kwargs": {
+                    "CustomPolicy": {
+                        "policy_approximation_method": "custom_policy_approximation",
+                        "_policy_approximation_method_options": ["mce_original", 
+                        "new_value_iteration", "use_learner_class", "custom_policy_approximation"],
+                        "discount": 0.99,
+                        "expose_state": false, "use_checkpoints": false,
+                        "use_expert_grounding": false,
+                        "assume_env_produce_state": false,
+                        "approximator_kwargs": {"value_iteration_tolerance": 0.0000001, "iterations": 2000}
+                    },
+                    "ppo_learner": {
+
+                        "policy_kwargs": {
+                        "net_arch": {"pi": [64,64,64], "vf": [64,64,64]}
+                        },
+                        "train_kwargs": {
+                            "total_timesteps": 200000,
+                            "discount": 0.99,
+                            "log_interval": 1,
+                            "tb_log_name": "MVC_learner1",
+                            "callback": null,
+                            "progress_bar": true,
+                            "stochastic": true,
+                            "ref_point": [-200.0, -100.0, -100.0],
+                            "known_pareto_front": null,
+                            "num_eval_weights_for_front": 20,
+                            "num_eval_episodes_for_front": 100,
+                            "reset_num_timesteps": true
+                        },
+                        "policy_class": "MlpPolicy",
+
+                        "learner_policy_class": "PPO",
+                        "stochastic_eval": true,
+                        "learner_policy_kwargs" : 
+                        {
+
+                            "rollout_buffer_class": "RolloutBufferCustomReward",
+                            "rollout_buffer_kwargs": {
+                                "relabel_experience" : true
+                            },
+                            "batch_size": 40,
+                            "verbose": true,
+                            "n_steps": 2000,
+                            "ent_coef": 0.01,
+                            "learning_rate": 0.0003,
+                            "gamma": 0.99,
+                            "gae_lambda": 0.999,
+                            "clip_range": 0.05,
+                            "vf_coef": 0.05,
+                            "n_epochs": 5,
+                            "normalize_advantage": true,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_learner_mvc/"
+                        }
+
+                    },"EnvelopeCustomReward":{
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 100000,
+                            "ref_point": [-200.0, -100.0, -100.0],
+                            "stochastic": true,
+                            "known_pareto_front": null,
+                            "num_eval_weights_for_front": 20,
+                            "num_eval_episodes_for_front": 100,
+                            "num_eval_weights_for_eval": 11,
+                            "eval_freq": 50000,
+                            "reset_num_timesteps": true,
+                            "reset_learning_starts": true,
+                            "verbose": true
+                        },
+                        "masked": false,
+                        "per": false,
+                        
+                        "buffer_with_weights": false,
+                        "maintain_original_reward": false,
+                        
+                        "max_grad_norm": 0.1,
+                        "learning_rate": 0.0003,
+                        "_learning_rate_unmask": 0.0001,
+                        "gamma": 0.99,
+                        "num_sample_w": 3,
+                        "batch_size": 160,
+                        "net_arch": [256, 256, 256, 256],
+                        "buffer_size": 200000,
+                        "initial_epsilon": 1.0,
+                        "final_epsilon": 0.05,
+                        "epsilon_decay_steps": 50000,
+                        "initial_homotopy_lambda": 0.0,
+                        "final_homotopy_lambda": 0.95,
+                        "homotopy_decay_steps": 30000,
+                        "learning_starts": 100,
+                        "envelope": true,
+                        "gradient_updates": 1,
+                        "target_net_update_freq": 1000,
+                        "tau": 1.0,
+                        "experiment_name": "envelopeMVC_expert"
+                    }
+                },
+                
+                "optimizer_kwargs": {
+                    "lr": 0.0001,
+                    "lr_grounding": 0.0001,
+                    "lr_value_system": 0.003,
+                    "lr_lambda": 0.01,
+                    "initial_lambda": 1.0,
+                    "weight_decay": 0.0001,
+                    "max_grad_norm": 1.0,
+                    "lambda_decay": 0.0005
+                },
+                "optimizer_class": "lagrange",
+                "learn_stochastic_policy": true,
+                "loss_class": "lagrange",
+                "n_rewards_for_ensemble": 1,
+                "loss_kwargs": {
+                    "model_indifference_tolerance": 0.05,
+                    "gr_apply_on_misclassified_pairs_only": false, 
+                    "vs_apply_on_misclassified_pairs_only": false,
+                    "confident_penalty": 0.0,
+                    "cluster_similarity_penalty": 1.0,
+                    "conciseness_penalty_reduction": "mean",
+                    "missclassification_min_weighting": 1.0,
+                    "per_agent": true,
+                    "label_smoothing": 0.1},
+                "_loss_class_options": ["cross_entropy_cluster", "soba", "lagrange"],
+                
+                "train_kwargs": {
+                    "max_iter": 200,
+                    "discount_factor_preferences": 0.99,
+                    
+                    "online_policy_update": false,
+                    "lexicographic_vs_first": true,
+                    "em_cycles_per_iteration": 3,
+                    "initial_m_steps_per_cycle": 10,
+                    "batch_size_per_agent": "full",
+                    "m_steps_per_cycle": 3,
+                    "max_assignment_memory": 8,
+                    "mutation_prob": 0.1,
+                    "mutation_scale": 0.1,
+                    "initial_exploration_rate": 0.3,
+                    "policy_train_kwargs": {
+                    }
+                }
+            }
+        }
+    },
+
+"apollo": {
+        "name": "RouteChoiceEnvironmentApolloComfort-v0",
+        "n_values": 3,
+        
+        "horizon": 2,
+
+        
+
+        "assume_variable_horizon": false,
+        
+        "basic_profiles": [[1.0, 0.0, 0.0], [0.0,1.0, 0.0], [0.0, 0.0, 1.0]],
+        "profiles_colors": [[1,0,0], [0,0,1], [0,1,0]],
+        "values_names": ["Efficiency", "Cost", "Comfort"],
+        "values_short_names": ["Eff", "Cost", "Comf"],
+        "environment_is_stochastic": false,
+        "discount": 1.0,
+        
+        "default_reward_net": {
+            "use_state": true,
+            "use_action": false,
+            "use_next_state": false,
+            "use_done": false,
+            "basic_layer_classes": ["nn.Linear", "nn.Linear",  "nn.Linear", "nn.Linear", "ConvexAlignmentLayer"],
+            "activations": ["nn.Tanh", "nn.Tanh", "nn.Tanh", "nn.Softplus", "nn.Identity"],
+            "use_bias": [true, true, true, true, false],
+            "hid_sizes": [16,24,16,3],
+            "negative_grounding_layer": true,
+            "clamp_rewards": false
+        },
+        "reward_feature_extractor": "FeatureExtractorFromVAEnv",
+        "policy_state_feature_extractor": "OneHotFeatureExtractor",
+        "_options_for_feature_extractors": ["FeatureExtractorFromVAEnv"],
+        "default_optimizer_kwargs": {
+            "lr": 0.003,
+            "weight_decay": 0.0000
+        },
+        "default_optimizer_class": "Adam",
+        "algorithm_config": {
+            "pc": {
+                "reward_net": {},
+                "optimizer_kwargs": {
+                    "lr": 0.01,
+                    "lr_grounding": 0.005,
+                    "lr_value_system": 0.02,
+                    "lr_lambda": 0.005,
+                    "initial_lambda": 0.01,
+                    "lambda_decay": 0.0001,
+                    "weight_decay": 0.0000
+                },
+                "optimizer_class": "lagrange",
+                "learn_stochastic_policy": true,
+                "loss_class": "lagrange",
+                "loss_kwargs": {
+                    "model_indifference_tolerance": 1.0,
+                    "gr_apply_on_misclassified_pairs_only": false, 
+                    "vs_apply_on_misclassified_pairs_only": false, 
+                    "repr_apply_on_worst_clusters_only": false,
+                    "conc_apply_on_worst_clusters_only": true,
+                    "confident_penalty": 5.0,
+                    "label_smoothing": 0.0,
+                    "cluster_similarity_penalty": 1.0
+                },
+                "_loss_class_options": ["cross_entropy_cluster", "soba", "lagrange"],
+                "discount_factor_preferences": 1.0, "discount_factor": 1.0,
+
+                "policy_approximation_method": "mce_original",
+                "_policy_approximation_method_options": ["mce_original", "new_value_iteration", "use_learner_class"],
+
+                "approximator_kwargs": {"value_iteration_tolerance": 0.0000001, "iterations": 2000},
+                "use_quantified_preference": false,
+                "preference_sampling_temperature": 0,
+                "query_schedule": "constant",
+                "train_kwargs": {
+                    "max_iter": 200,
+                    "trajectory_batch_size": "full",
+                    "fragment_length": "horizon",
+                    "comparisons_per_agent_per_step": null,
+                    "mutation_prob": 0.1,
+                    "mutation_scale": 0.3,
+                    "max_assignment_memory": 5
+                },
+
+                "learner_policy_class": "PPO",
+                "learner_policy_kwargs" : 
+                {
+                    "batch_size": 25,
+                    "n_steps": 50,
+                    "ent_coef": 0.1,
+                    "learning_rate": 0.02,
+                    "gamma": 1.0,
+                    "gae_lambda": 0.999,
+                    "clip_range": 0.05,
+                    "vf_coef": 0.01,
+                    "n_epochs": 5,
+                    "normalize_advantage": true,
+                    "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_ff/"
+                },
+                
+                "reward_trainer_kwargs": {
+                    "epochs": 4,
+                    "refining_steps_after_cluster_assignment": 4,
+                    
+                    "initial_refining_steps": 16,
+                    "initial_exploration_rate": 0.2,
+                    "batch_size": "full",
+                    "inner_k_fold_validation_divisions_per_epoch": null
+                }
+            }
+        }
+    },
+"livroom": {
+        "name": "living-room-v0",
+        "n_values": 3,
+        "horizon": 50,
+
+        
+
+        "assume_variable_horizon": true,
+        
+        "basic_profiles": [[1.0, 0.0, 0.0], [0.0,1.0, 0.0], [0.0, 0.0, 1.0]],
+        "profiles_colors": [[1,0,0], [0,0,1], [0,1,0]],
+        "values_names": ["Time", "Tidy", "Care"],
+        "values_short_names": ["Time", "Tidy", "Care"],
+        "environment_is_stochastic": false,
+        "discount": 1.0,
+        "width": 4,
+        "height": 4,
+        "start_location": 3,
+        "goal_location": 3,
+        "rubbish_location": 5,
+        "table_location": 5,
+        "cat_location": 6,
+        "obstacle_locations": [8, 10],
+        "time_penalty": -1,
+        "goal_reward": 50,
+        "displacement_penalty": -50,
+        "cat_penalty": -50,
+        
+        "default_reward_net": {
+            "use_state": false,
+            "use_action": false,
+            "use_next_state": true,
+            "use_done": false,
+            "basic_layer_classes": ["nn.Linear", "nn.Linear", "ConvexLinearModule", "ConvexAlignmentLayer"],
+            "activations": ["nn.Tanh","nn.Softplus","nn.Identity", "nn.Identity"],
+            "use_bias": [true, true, false, false],
+            "hid_sizes": [80,80,3],
+            "negative_grounding_layer": true,
+            "clamp_rewards": false
+        },
+        "reward_feature_extractor": "FeatureExtractorFromVAEnv",
+        "policy_state_feature_extractor": "OneHotFeatureExtractor",
+        "_options_for_feature_extractors": ["FeatureExtractorFromVAEnv"],
+        "default_optimizer_kwargs": {
+            "lr": 0.001,
+            "weight_decay": 0.0000
+        },
+        "default_optimizer_class": "Soba",
+        "algorithm_config": {
+            "pc": {
+                "reward_net": {},
+
+                "default_wrappers": [
+                    {
+                        "type": "FlattenObservation",
+                        "kwargs": {}
+                    }
+                    
+                ],
+                "optimizer_kwargs": {
+                    "lr": 0.01,
+                    "lr_grounding": 0.001,
+                    "lr_value_system": 0.002,
+                    "lr_lambda": 0.01,
+                    "initial_lambda": 0.5,
+                    "weight_decay": 0.0000,
+                    "lambda_decay": 5e-9
+                },
+                "optimizer_class": "lagrange",
+                "learn_stochastic_policy": false,
+                "loss_class": "lagrange",
+                "loss_kwargs": {
+                    "model_indifference_tolerance": 0.0001,
+                    "gr_apply_on_misclassified_pairs_only": false, 
+                    "vs_apply_on_misclassified_pairs_only": false, 
+                    "repr_apply_on_worst_clusters_only": false,
+                    "conc_apply_on_worst_clusters_only": true,
+                    "confident_penalty":5.0,
+                    "cluster_similarity_penalty": 1.0},
+                "_loss_class_options": ["cross_entropy_cluster", "soba", "lagrange"],
+                "discount_factor_preferences": 1.0, "discount_factor": 1.0,
+
+                "expert_policy_class": "envelope",
+                "expert_policy_kwargs": {
+                    "pcn":{
+                        "scaling_factor": [1.0, 1.0, 1.0, 0.1],
+                        "train_kwargs": {
+                            "total_timesteps": 10000,
+                            "ref_point": [-500, -50, -50],
+                            "num_eval_weights_for_front": 100,
+                            "num_eval_episodes_for_front": 100,
+                            "known_pareto_front": null,
+                            "eval_freq": 1000,
+                            "reset_num_timesteps": false,
+                            "reset_learning_starts": false
+                        },
+                        
+                        "learning_rate": 0.002,
+                        "batch_size": 64,
+                        "hidden_dim": 64,
+                        "project_name": "PreferenceBasedMORL",
+                        "experiment_name": "pcnLR_expert"
+                    },
+                    "envelope":{
+                        "train_kwargs": {
+                            "total_timesteps": 1000,
+                            "ref_point": [-500, -50, -50]
+                        },
+                        "max_grad_norm": 1.0,
+                        "learning_rate": 0.003,
+                        "gamma": 0.9999,
+                        "batch_size": 64,
+                        "net_arch": [256, 256, 256, 256],
+                        "buffer_size": 100000,
+                        "initial_epsilon": 1.0,
+                        "final_epsilon": 0.05,
+                        "epsilon_decay_steps": 50000,
+                        "initial_homotopy_lambda": 0.1,
+                        "final_homotopy_lambda": 1.0,
+                        "homotopy_decay_steps": 10000,
+                        "learning_starts": 50,
+                        "envelope": true,
+                        "gradient_updates": 1,
+                        "target_net_update_freq": 10,
+                        "tau": 1,
+                        "experiment_name": "envelopeLR_expert",
+                        "project_name": "PreferenceBasedMORL"
+                    }
+                },
+                "learning_policy_class": "ppo_learner",
+                "learning_policy_kwargs": {
+                    "ppo_learner": {
+                        "policy_kwargs": {
+                        "net_arch": {"pi": [64, 64, 8], "vf": [64, 64, 8]}
+                        },
+                        "policy_class": "MaskedPolicySimple",
+
+                        "learner_policy_class": "PPO",
+                        "learner_policy_kwargs" : 
+                        {
+                            "batch_size": 25,
+                            "n_steps": 50,
+                            "ent_coef": 0.1,
+                            "learning_rate": 0.02,
+                            "gamma": 1.0,
+                            "gae_lambda": 0.999,
+                            "clip_range": 0.05,
+                            "vf_coef": 0.01,
+                            "n_epochs": 5,
+                            "normalize_advantage": true,
+                            "tensorboard_log": "./tensorboard/ppo_tensorboard_expert_rw/"
+                        }
+                
+                    }
+                },
+                "use_quantified_preference": false,
+                "preference_sampling_temperature": 0,
+                "query_schedule": "constant",
+                "train_kwargs": {
+                    "max_iter": 100,
+                    "trajectory_batch_size": "full",
+                    "fragment_length": "horizon",
+                    "comparisons_per_agent_per_step": null,
+
+                    "max_assignment_memory": 7
+                },
+
+                
+                "reward_trainer_kwargs": {
+                    "epochs": 3,
+                    "refining_steps_after_cluster_assignment": 3,
+                    
+                    "initial_refining_steps": 12,
+                    "initial_exploration_rate": 0.4,
+                    "batch_size": "full",
+                    "inner_k_fold_validation_divisions_per_epoch": null
+                }
+            }
+        }
+    }
+    
+}

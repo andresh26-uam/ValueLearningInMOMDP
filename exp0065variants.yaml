@@ -1,0 +1,30 @@
+0:
+  weight_main_fuel: 0.0
+  weight_shaping: 1.0
+1:
+  weight_main_fuel: 0.1736
+  weight_shaping: 0.9848
+2:
+  weight_main_fuel: 0.342
+  weight_shaping: 0.9397
+3:
+  weight_main_fuel: 0.5
+  weight_shaping: 0.866
+4:
+  weight_main_fuel: 0.6428
+  weight_shaping: 0.766
+5:
+  weight_main_fuel: 0.766
+  weight_shaping: 0.6428
+6:
+  weight_main_fuel: 0.866
+  weight_shaping: 0.5
+7:
+  weight_main_fuel: 0.9397
+  weight_shaping: 0.342
+8:
+  weight_main_fuel: 0.9848
+  weight_shaping: 0.1736
+9:
+  weight_main_fuel: 1.0
+  weight_shaping: 0.0

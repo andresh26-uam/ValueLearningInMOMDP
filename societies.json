@@ -1,0 +1,370 @@
+{"moral": 
+    {
+        "default": {
+            "name": "default",
+            "stochastic_expert": false,
+            "same_trajectories_for_each_agent_type": true,
+            "is_tabular": false,
+            "default_n_agents": 3,
+            "default_data": {
+                    "trajectory_pairs": 120,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                },
+            "agents": [{
+                "name": "100agent",
+                "value_system": [1.0, 0.0, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 120,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "00505agent",
+                "value_system": [0.0, 0.5, 0.5],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 120,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "030303gent",
+                "value_system": [0.33, 0.33, 0.34],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 120,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "010gent",
+                "value_system": [0.0, 1.0, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 120,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "05050agent", 
+                "value_system": [0.5, 0.5, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 120,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "001agent", 
+                "value_system": [0.0, 0.0, 1.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 120,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            }]
+        }
+    },
+"dst": 
+    {
+        "default": {
+            "name": "default",
+            "n_values": 2,
+            "stochastic_expert": true,
+            "same_trajectories_for_each_agent_type": true,
+            "is_tabular": true,
+            "default_n_agents": 2,
+            "default_data": {
+                    "trajectory_pairs": 200,
+                    "rationality": 0.9, "random_traj_proportion": 0.2
+                },
+            "agents": ["sample", 5]
+        }
+    },
+"ff": 
+    {
+        
+        "groundings": {
+                "default_professionalism": "ff_professionalism.npy",
+                "professionalist": "ff_professionalist.npy",
+                "default_proximity": "ff_proximity.npy",
+                "proximitier": "ff_proximitier.npy"
+                }
+            ,
+        
+        "default": {
+            "name": "default",
+            "stochastic_expert": true,
+            "same_trajectories_for_each_agent_type": true,
+            "is_tabular": true,
+            "default_n_agents": 3,
+            "n_values": 2,
+            "default_data": {
+                    "trajectory_pairs": 200,
+                    "rationality": 0.9, "random_traj_proportion": 0.2
+                },
+            "agents": ["sample", 5]
+        }
+    },
+
+
+"mvc": 
+    {
+        
+        "groundings": {
+                "default_ach": "rw_achievement.npy",
+                "default_com": "rw_comfort.npy",
+                "default_saf": "rw_safety.npy"
+                }
+            ,
+        "default": {
+            "name": "default",
+            "stochastic_expert": false,
+            "same_trajectories_for_each_agent_type": true,
+            "is_tabular": false,
+            "default_n_agents": 2,
+            "n_values": 3,
+            "default_data": {
+                    "trajectory_pairs": 200,
+                    "rationality": 0.9, "random_traj_proportion": 0.2
+                },
+            "agents": ["sample", 6]
+        }
+    },
+"mine": 
+    {
+        "default": {
+            "name": "default",
+            "stochastic_expert": true,
+            "same_trajectories_for_each_agent_type": true,
+            "is_tabular": false,
+            "default_n_agents": 1,
+            "n_values": 3,
+            "default_data": {
+                    "trajectory_pairs": 200,
+                    "rationality": 0.9, "random_traj_proportion": 0.1
+                },
+            "agents": ["sample", 5]}
+    },
+"rw": 
+    {
+        "default": {
+            "name": "default",
+            "stochastic_expert": false,
+            "same_trajectories_for_each_agent_type": true,
+            "is_tabular": true,
+            "default_n_agents": 3,
+            "n_values": 3,
+            "default_data": {
+                    "trajectory_pairs": 200,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                },
+            "agents": ["sample", 5],
+            "_agents": [{
+                "name": "100agent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [1.0, 0.0, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "05050agent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [0.75, 0.25, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "00505agent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [0.0, 0.5, 0.5],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "030303gent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [0.33, 0.33, 0.34],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "05050agent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [0.75, 0.5, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "05050agent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [0.0, 0.25, 0.75],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "05050agent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [0.5, 0.5, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "05050agent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [0.75, 0.25, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            },
+            {
+                "name": "001agent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [0.0, 0.0, 1.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.5
+                }
+            }]
+        }
+    },
+"vrw": 
+    {
+        
+        "groundings": {
+                "default_sus": "rw_sustainability.npy",
+                "default_com": "rw_comfort.npy",
+                "default_eff": "rw_efficiency.npy"
+                }
+            ,
+        "default": {
+            "name": "default",
+            "stochastic_expert": false,
+            "same_trajectories_for_each_agent_type": true,
+            "is_tabular": true,
+            "agents": [{
+                "name": "100agent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [1.0, 0.0, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 30,
+                    "rationality": 1.0, "random_traj_proportion": 0.0
+                }
+            },
+            {
+                "name": "010agent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [0.0, 1.0, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 30,
+                    "rationality": 1.0, "random_traj_proportion": 0.0
+                }
+            },
+            {
+                "name": "001agent",
+                "grounding": ["default_sus", "default_com", "default_eff"], 
+                "value_system": [0.0, 0.0, 1.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 30,
+                    "rationality": 1.0, "random_traj_proportion": 0.0
+                }
+            }]
+        }
+    },
+"apollo": {
+        "groundings": {
+                "default_eff": "ap_travel_time.npy",
+                "default_ach": "ap_travel_cost.npy",
+                "default_sec": "ap_headway.npy",
+                "default_comf": "ap_transfers.npy"
+                },
+
+        "default": {
+            "name": "default",
+            "same_trajectories_for_each_agent_type": false,
+            "stochastic_expert": true
+    }
+},
+"livroom": 
+    {
+        "default": {
+            "name": "default",
+            "stochastic_expert": false,
+            "same_trajectories_for_each_agent_type": true,
+            "is_tabular": false,
+            "agents": [{
+                "name": "100agent", 
+                "value_system": [1.0, 0.0, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.0
+                }
+            },
+            {
+                "name": "00505agent",
+                "value_system": [0.0, 0.5, 0.5],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.0
+                }
+            },
+            {
+                "name": "030303gent",
+                "value_system": [0.33, 0.33, 0.34],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.0
+                }
+            },
+            {
+                "name": "05050agent",
+                "value_system": [0.5, 0.5, 0.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.0
+                }
+            },
+            {
+                "name": "001agent",
+                "value_system": [0.0, 0.0, 1.0],
+                "n_agents": 3,
+                "data": {
+                    "trajectory_pairs": 60,
+                    "rationality": 1.0, "random_traj_proportion": 0.0
+                }
+            }]
+        }
+    }
+}

@@ -1,0 +1,48 @@
+0:
+  weight_time: 0.0
+  weight_table: 1.0
+  weight_cat: 0.0
+1:
+  weight_time: 0.2
+  weight_table: 0.8
+  weight_cat: 0.0
+2:
+  weight_time: 0.5
+  weight_table: 0.5
+  weight_cat: 0.0
+3:
+  weight_time: 0.8
+  weight_table: 0.2
+  weight_cat: 0.0
+4:
+  weight_time: 1.0
+  weight_table: 0.0
+  weight_cat: 0.0
+5:
+  weight_time: 0.0
+  weight_table: 0.2
+  weight_cat: 0.8
+6:
+  weight_time: 0.0
+  weight_table: 0.5
+  weight_cat: 0.5
+7:
+  weight_time: 0.33
+  weight_table: 0.33
+  weight_cat: 0.34
+8:
+  weight_time: 0.2
+  weight_table: 0.0
+  weight_cat: 0.8
+8:
+  weight_time: 0.5
+  weight_table: 0.0
+  weight_cat: 0.5
+9:
+  weight_time: 0.0
+  weight_table: 0.8
+  weight_cat: 0.2
+10:
+  weight_time: 0.0
+  weight_table: 0.0
+  weight_cat: 1.0
