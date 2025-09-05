@@ -23,7 +23,7 @@ from src.feature_extractors import BaseRewardFeatureExtractor
 from defines import CHECKPOINTS, transform_weights_to_tuple
 
 from baraacuda.envs import living_room, deep_sea_treasure
-from envs import firefighters_env_mo, roadworld_env
+from envs import firefighters_env_mo
 
 def __copy_args__(self, new):
         for k, v in vars(self).items():

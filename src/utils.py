@@ -8,7 +8,6 @@ from typing import List
 import dill
 import numpy as np
 
-from use_cases.roadworld_env_use_case.values_and_costs import BASIC_PROFILES
 
 def merge_dicts_recursive(base, update):
         for key, value in update.items():

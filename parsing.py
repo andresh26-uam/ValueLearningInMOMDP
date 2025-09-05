@@ -40,7 +40,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 
 from src.reward_nets.vsl_reward_functions import parse_layer_name
 from src.utils import sample_example_profiles
-from use_cases.roadworld_env_use_case.network_env import FeaturePreprocess, FeatureSelection
+#from use_cases.roadworld_env_use_case.network_env import FeaturePreprocess, FeatureSelection
 
 WRAPPERS = {
     "NormalizeObservation": NormalizeObservation,
@@ -562,13 +562,14 @@ def create_environments(make_env, parser_args, environment_data, alg_config, exp
             # "horizon": environment_data['horizon']
         }
     elif parser_args.environment == 'rw':
-        extra_kwargs = {
+        raise NotImplementedError("Old RW environment not supported anymore.")
+        """extra_kwargs = {
             'feature_selection': FeatureSelection(environment_data['feature_selection']) if isinstance(environment_data['feature_selection'], str) else tuple([FeatureSelection(fs) for fs in environment_data['feature_selection']]),
             'feature_preprocessing': FeaturePreprocess(environment_data['feature_preprocessing']),
             'masked': True,
             'destination_method': environment_data['destination_method']
             # "horizon": environment_data['horizon']
-        }
+        }"""
     elif parser_args.environment == 'mvc':
         extra_kwargs = {
             'feature_selection': MVFS(environment_data['feature_selection']),
