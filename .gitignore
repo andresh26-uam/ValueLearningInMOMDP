@@ -220,4 +220,5 @@ datasets/trajectories*
 .DS_Store
 *.code-workspace
 
-use_cases/roadworld_env_use_case/data/*
+use_cases/roadworld_env_use_case/
+envs/roadworld_env.py
