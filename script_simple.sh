@@ -17,6 +17,7 @@ wandb=true
 prefix=""
 prefix_data=""
 resume_from=0
+O=""
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -24,6 +25,10 @@ while [[ $# -gt 0 ]]; do
     -trval)
             mode="traineval"
             shift
+            ;;
+            -O)
+            O="-O"
+            shift 
             ;;
         -all)
             mode="all"
@@ -144,6 +149,7 @@ echo "SKIP CONFIRMATION": $skip_confirm
 echo "RESUME FROM": $resume_from
 echo "WANDB": $wandb
 echo "PREFIX=": $prefix
+echo "DEBUGGING": $O
 if [[ "$env" != "ffmo" && "$env" != "mvc" && "$env" != "rw" && "$env" != "dst" && "$env" != "mine" ]]; then
     echo "Error: env must be one of: ffmo, mvc, rw, dst, mine"
     exit 1
@@ -191,20 +197,20 @@ if ! $skip_confirm; then
 fi
 if [[ "$mode" == "all" || "$mode" == "genrt" ]]; then
     echo "Generating dataset for $env with expol $expol and algorithm $algo RETRAINING!"
-    python generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -rt -pareto -a $algo -cf algorithm_config_${algo}.json
-    python generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -pareto -a $algo -cf algorithm_config_${algo}.json
+    python $O generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -rt -pareto -a $algo -cf algorithm_config_${algo}.json
+    python $O generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -pareto -a $algo -cf algorithm_config_${algo}.json
 elif [[ "$mode" == "all" || "$mode" == "gen" ]]; then
     echo "Generating dataset for $env with expol $expol and algorithm $algo"
-    python generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -pareto -a $algo -cf algorithm_config_${algo}.json
+    python $O generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -pareto -a $algo -cf algorithm_config_${algo}.json
 fi
 if [[ "$mode" == "all" || "$mode" == "train" || "$mode" == "traineval" ]]; then
     if [[ $wandb == true ]]; then
-        python train_movsl.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${L}_seed${seed} -sname $sname  -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -e $env -L $L -a $algo -s $seed -wb -rs $resume_from -cf algorithm_config_${algo}.json
+        python $O train_movsl.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${L}_seed${seed} -sname $sname  -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -e $env -L $L -a $algo -s $seed -wb -rs $resume_from -cf algorithm_config_${algo}.json
     else 
-        python train_movsl.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${L}_seed${seed} -sname $sname  -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -e $env -L $L -a $algo -s $seed -rs $resume_from -cf algorithm_config_${algo}.json
+        python $O train_movsl.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${L}_seed${seed} -sname $sname  -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -e $env -L $L -a $algo -s $seed -rs $resume_from -cf algorithm_config_${algo}.json
     fi
 fi
 echo "Training completed."
 if [[ "$mode" == "all" || "$mode" == "eval" || "$mode" == "traineval" ]]; then
-    python evaluate.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${L}_seed${seed} -sname $sname -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -e $env -strajs 200 -seps 0.05 -a $algo -cf algorithm_config_${algo}.json
+    python $O evaluate.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${L}_seed${seed} -sname $sname -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -e $env -strajs 200 -seps 0.05 -a $algo -cf algorithm_config_${algo}.json
 fi

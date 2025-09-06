@@ -743,7 +743,7 @@ def parse_args_evaluate():
     # subfig_multiplier
     general_group.add_argument('-subfm', '--subfig_multiplier', type=float, default=6.0,
                                help='Scales subfigs inside the plots.')
-    general_group.add_argument('-pfont', '--plot_fontsize', type=int, default=12,
+    general_group.add_argument('-pfont', '--plot_fontsize', type=int, default=15,
                                help='Font size in plots.')
     general_group.add_argument('-seps', '--sampling_epsilon', type=float, default=0.1,
                                help='Exploration rate for sampling.')

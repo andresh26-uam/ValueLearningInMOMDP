@@ -503,62 +503,34 @@ def plot_learned_and_expert_reward_pairs(vsl_algo: PVSL, learned_rewards_per_al_
             std_learned_al = [0 for _ in learned_al]
         
         # TODO: put it callable learner reward?
-        if hasattr(vsl_algo.policy, 'state_dim'):
-            if isinstance(learned_rewards_per_al_func, list):
-                
-                
-                lr_per_round = [learned_rewards_per_al_func[j](
-                al)() for j in range(len(learned_rewards_per_al_func))]
-                learned_reward_al = np.mean(lr_per_round, axis=0)
-                
-                std_reward_al = np.mean(np.std(lr_per_round, axis=0))
-            else:
-                learned_reward_al = learned_rewards_per_al_func(al)()
-                #print("SH", np.asarray(learned_reward_al).shape)
-                #exit(0)
-
-            # Get expert rewards
-            expert_reward_al = vsl_algo.env.reward_matrix_per_align_func(al)
+        # If the environment does not have state_dim, we assume it is a single value
             
-
-            # Check shape consistency
-            assert learned_reward_al.shape == expert_reward_al.shape, "Learned and expert rewards must have the same shape"
-
-            # if sampling trajs, plot the aggregated rewards.
-            if trajs_sampled is not None:
-                traj_expert_rewards_al =  np.array([np.sum(expert_reward_al[trajs_sampled[j].obs[:-1], trajs_sampled[j].acts]) for j in range(len(trajs_sampled))])
-                traj_learned_rewards_al = np.array([np.sum(learned_reward_al[trajs_sampled[j].obs[:-1], trajs_sampled[j].acts]) for j in range(len(trajs_sampled))])
-            print("PAIRS", traj_learned_rewards_al[0:5])
-            exit(0)
+        if isinstance(learned_rewards_per_al_func, list):
+            lr_per_round = [learned_rewards_per_al_func[j](
+                al) for j in range(len(learned_rewards_per_al_func))]
+            
         else:
-            # If the environment does not have state_dim, we assume it is a single value
+            lr_per_round  = [learned_rewards_per_al_func(al), ]
+        traj_expert_rewards_al = [0.0 for _ in range(len(lr_per_round))]
+        traj_learned_rewards_al = [0.0 for _ in range(len(lr_per_round))]
+        expert_reward_al = partial(vsl_algo.env.get_reward_per_align_func, align_func=al)
             
-            if isinstance(learned_rewards_per_al_func, list):
-                lr_per_round = [learned_rewards_per_al_func[j](
-                    al) for j in range(len(learned_rewards_per_al_func))]
-                
-            else:
-                lr_per_round  = [learned_rewards_per_al_func(al), ]
-            traj_expert_rewards_al = [0.0 for _ in range(len(lr_per_round))]
-            traj_learned_rewards_al = [0.0 for _ in range(len(lr_per_round))]
-            expert_reward_al = partial(vsl_algo.env.get_reward_per_align_func, align_func=al)
-                
-            
-            for round_ in range(len(lr_per_round)):
-                learned_reward_al = lr_per_round[round_]
-                traj_expert_rewards_al[round_] = np.array(
-                    [np.sum(
-                        [float(expert_reward_al(state=s, action=a, next_state=ns, done=None)) for s,a,ns in zip(
-                            trajs_sampled[j].obs[:-1], trajs_sampled[j].acts, trajs_sampled[j].obs[1:])])
-                              for j in range(len(trajs_sampled))])
-                traj_learned_rewards_al[round_] = np.array(
-                    [np.sum(
-                        [float(learned_reward_al(state=s, action=a, next_state=ns, done=None)) for s,a,ns in zip(
-                            trajs_sampled[j].obs[:-1], trajs_sampled[j].acts, trajs_sampled[j].obs[1:])])
-                              for j in range(len(trajs_sampled))])
-            
-            traj_learned_rewards_al = np.mean(traj_learned_rewards_al, axis=0)
-            traj_expert_rewards_al = np.mean(traj_expert_rewards_al, axis=0)
+        
+        for round_ in range(len(lr_per_round)):
+            learned_reward_al = lr_per_round[round_]
+            traj_expert_rewards_al[round_] = np.array(
+                [np.sum(
+                    [float(expert_reward_al(state=s, action=a, next_state=ns, done=None)) for s,a,ns in zip(
+                        trajs_sampled[j].obs[:-1], trajs_sampled[j].acts, trajs_sampled[j].obs[1:])])
+                            for j in range(len(trajs_sampled))])
+            traj_learned_rewards_al[round_] = np.array(
+                [np.sum(
+                    [float(learned_reward_al(state=s, action=a, next_state=ns, done=None)) for s,a,ns in zip(
+                        trajs_sampled[j].obs[:-1], trajs_sampled[j].acts, trajs_sampled[j].obs[1:])])
+                            for j in range(len(trajs_sampled))])
+        
+        traj_learned_rewards_al = np.mean(traj_learned_rewards_al, axis=0)
+        traj_expert_rewards_al = np.mean(traj_expert_rewards_al, axis=0)
             
 
         # Flatten rewards for plotting as pairs
@@ -1442,7 +1414,16 @@ def generate_assignment_tables_v2(table_data: dict, Lmax_to_enames: dict, values
         print("DR", data_for_row)
         row["Lmax"] = Lmax_now
         Lslearned = [data_for_row[i]["L"] for i in range(len(data_for_row))]
-        row["L"] = f"{stats.mode(Lslearned)[0]}, ({stats.mode(Lslearned)[1]/len(Lslearned)*100.0}%)"
+        # Compute mode and frequency for Lslearned
+        mode_val, mode_count = stats.mode(Lslearned)
+        mode_val = mode_val[0]
+        mode_count = mode_count[0]
+        row["L"] = f"{mode_val}, ({mode_count/len(Lslearned)*100.0:.1f}%)"
+        # Add the rest of values and their frequency
+        unique_vals, counts = np.unique(Lslearned, return_counts=True)
+        for val, count in zip(unique_vals, counts):
+            freq = count / len(Lslearned) * 100.0
+            row["L"] += f", {val} ({freq:.1f}%)"
         row["Repr"] = f"{np.mean([data_for_row[i]['Repr'] for i in range(len(data_for_row))]):.3f} ± {np.std([data_for_row[i]['Repr'] for i in range(len(data_for_row))]):.3f}"
         row["Conc"] = f"{np.mean([data_for_row[i]['Conc'] for i in range(len(data_for_row))]):.3f} ± {np.std([data_for_row[i]['Conc'] for i in range(len(data_for_row))]):.3f}"
         row["RT"] = f"{np.mean([data_for_row[i]['RT'] for i in range(len(data_for_row))]):.3f} ± {np.std([data_for_row[i]['RT'] for i in range(len(data_for_row))]):.3f}"
@@ -1474,7 +1455,7 @@ def generate_assignment_tables_v2(table_data: dict, Lmax_to_enames: dict, values
     print(
         f"Saved assignment table to {csv_path} and {latex_path}")
 
-def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_eval_env, run_dir: str, discount, environment_data, expert_policy: MOBaselinesAgent, known_pareto_front=None, plot_di_scores=False, plot_returns=True, num_eval_weights_for_front=20, num_eval_episodes_for_front=20, font_size=12, sampling_trajs_per_agent=100, sampling_epsilon=0.05, show=False):
+def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_eval_env, run_dir: str, discount, environment_data, expert_policy: MOBaselinesAgent, known_pareto_front=None, plot_di_scores=False, plot_returns=True, num_eval_weights_for_front=20, num_eval_episodes_for_front=20, fontsize=12, sampling_trajs_per_agent=100, sampling_epsilon=0.05, show=False):
 
         values_names = environment_data['values_names']
         values_short_names = environment_data['values_short_names']
@@ -1600,7 +1581,7 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
 
 
 
-            plot_di_scores_for_experiments(run_dir, scores, repres, conc, n_clusters=n_clusters, fontsize=font_size)
+            plot_di_scores_for_experiments(run_dir, scores, repres, conc, n_clusters=n_clusters, fontsize=fontsize)
 
         
         
@@ -1650,14 +1631,14 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
                                         known_front_data=known_pareto_front,
                                         with_clusters=best_gr_then_vs_assignment,
                                         objective_names=values_names,
-                                        cluster_colors=vsl_algo.get_cluster_colors('matplotlib'),
+                                        cluster_colors=vsl_algo.get_cluster_colors('matplotlib'),fontsize=fontsize,
                                         save_path=os.path.join(ppath, "seed" + seed_ename), show=show)
                     visualize_pareto_front(title="Learned Solutions",
                                         learned_front_data=unfiltered_front_and_weights,
                                         known_front_data=known_pareto_front,
                                         with_clusters=best_gr_then_vs_assignment,
                                         objective_names=values_names,
-                                        cluster_colors=vsl_algo.get_cluster_colors('matplotlib'),
+                                        cluster_colors=vsl_algo.get_cluster_colors('matplotlib'),fontsize=fontsize,
                                         save_path=os.path.join(plearned, "seed" + seed_ename), show=show)
 
             
@@ -1667,7 +1648,7 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
 
             plot_metrics_for_experiments(historic_per_ename, enames,
                                         run_dir=os.path.join(run_dir, 'train', 'plot_metrics'),
-                                        maximum_conciseness_per_ename=maximum_conciseness_per_ename, n_iterations_real=n_iter,  fontsize=font_size)
+                                        maximum_conciseness_per_ename=maximum_conciseness_per_ename, n_iterations_real=n_iter,  fontsize=fontsize)
             
             
 

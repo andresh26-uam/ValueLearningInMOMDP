@@ -1248,6 +1248,7 @@ class ConstrainedLoss(VSLCustomLoss):
             real_loss = self.vs_loss*renormalization + sum(self.lagrange_multipliers[vi] * self.gr_loss_per_vi[vi] * renormalization for vi in range(len(self.gr_loss_per_vi)))
         else:
             real_loss = self.vs_loss*renormalization 
+        
         #l2_norm = sum(p.pow(2).sum() for p in self.params_gr)
         #real_loss = real_loss + 0.001 * l2_norm # L2 regularization on the grounding parameters
         # TODO: this is not the best way to do it, but it is the only one that works with the current implementation.

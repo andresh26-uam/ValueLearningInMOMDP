@@ -18,18 +18,41 @@ import torch as th
 
 from imitation.util import util
 
-def check_grounding_value_system_networks_consistency_with_optim(grounding, value_system_per_cluster, optimizer, only_grounding: bool):
+def check_grounding_value_system_networks_consistency_with_optim(grounding, value_system_per_cluster, optimizer, only_grounding: bool=False, copies: bool=False, check_grads: bool=False):
     if __debug__:
         """Checks if the optimizer parameters match the networks' parameters."""
         optimizer_params = {param for group in optimizer.param_groups for param in group['params']}
+        if check_grads:
+            assert all([param.requires_grad for param in optimizer_params]), "Some value system parameters are missing in the optimizer."
+            
         #network_params = {param for network in grounding.networks for param in network.parameters()}
         #network_params.update({param for network in value_system_per_cluster for param in network.parameters()})
         network_params = {param for param in grounding.parameters()}
+        
         if not only_grounding:
+            vs_params = {param for network in value_system_per_cluster for param in network.parameters()}
+            if check_grads:
+                assert all([param.requires_grad for param in vs_params]), "Some value system parameters are missing in the optimizer."
             network_params.update({param for network in value_system_per_cluster for param in network.parameters()})
         #print(len(optimizer_params), len(network_params))
-        assert optimizer_params == network_params, "Optimizer parameters do not match the networks' parameters."
-
+        if not copies:
+            assert optimizer_params == network_params, "Optimizer parameters do not match the networks' parameters."
+        else:
+            # Check that all parameter values are equal (not just references)
+            # Compare parameter values (not ids)
+            print("OP", optimizer_params, len(optimizer_params))
+            print("NP",network_params, len(network_params))
+            assert len(optimizer_params) == len(network_params), "Number of optimizer and network parameters do not match."
+            # Match parameters by their content, not just shape
+            unmatched_network_params = list(network_params)
+            for p_opt in optimizer_params:
+                found = False
+                for i, p_net in enumerate(unmatched_network_params):
+                    if th.allclose(p_opt.data, p_net.data):
+                        found = True
+                        unmatched_network_params.pop(i)
+                        break
+                assert found, "Optimizer parameter values do not match any network parameter values."
 
 
 
@@ -419,7 +442,7 @@ class ClusterAssignment(object):
         #print(self.intra_discordances_gr_per_agent[1]['A0|[0. 1.]_0'])
         #input("Done recalculating discordances.")
         return pref_model_per_cid, cluster_idxs_per_cid
-    def __init__(self, weights_per_cluster: Mapping[int, LinearAlignmentLayer],
+    def __init__(self, weights_per_cluster: List[LinearAlignmentLayer],
                  grounding: RewardVectorModule,
                  inter_discordances_vs=None,
                  intra_discordances_gr_per_agent = None,
@@ -814,6 +837,7 @@ class ClusterAssignmentMemory():
             result += f" VS Clusters: {assignment.active_vs_clusters()}\n"
             result += f" OS: {assignment.optimizer_state}\n"
             result += f" Value Systems: {assignment.value_systems_active}\n"
+            result += f" Value Systems (ALL): {assignment.value_systems}\n"
             result += "\n"
         return result
 
@@ -1135,9 +1159,13 @@ class ClusterAssignmentMemory():
             return self.memory[0], True
         n = len(indices_selectable)
         weights = [2*(n-i)/(n*(n+1)) for i in range(n)] # Linear rank selection Goldberg
-        assignment_index =  random.choices(indices_selectable, weights=weights, k=1)[0]
-
+        #print(weights)
+        
+        assignment_index = random.choices(indices_selectable, weights=weights, k=1)[0]
         assignment = self.memory[assignment_index]
+        print(assignment.coherence())
+        print("Selected index", assignment_index,weights, indices_selectable)
+        
         protected = bool(assignment.protected) and len(self.memory) > 1
         assignment.protected = False
         """for a,b in itertools.combinations(self.memory, 2):
@@ -1205,9 +1233,10 @@ def generate_mutated_assignment(reference_assignment: ClusterAssignment,
             flag = False
             for param in new_grounding.parameters():
                 if param.requires_grad:
+                    assert not th.any(param.isinf()) and not th.any(param.isnan())
                     param: th.Tensor
                     #mask = th.rand_like(param) < mutation_prob  # percentage of parameters changed.
-                    normal = th.empty_like(param).normal_(0, mutation_scale*grounding_deviation*max(th.norm(param), 100.0))
+                    normal = th.empty_like(param).normal_(0, mutation_scale*grounding_deviation*min(th.norm(param), 100.0))
                     #param.add_(th.where(mask, normal, th.zeros_like(param)))
                     param.add_(normal)
                     assert not th.any(param.isinf()) and not th.any(param.isnan())
@@ -1234,7 +1263,7 @@ def generate_mutated_assignment(reference_assignment: ClusterAssignment,
                         if param.requires_grad:
                             param: th.Tensor
                             #mask = th.rand_like(param) < mutation_prob  # percentage of parameters changed.
-                            normal = th.empty_like(param).normal_(0, mutation_scale*value_system_deviation*max(th.norm(param), 100.0))
+                            normal = th.empty_like(param).normal_(0, mutation_scale*value_system_deviation*min(th.norm(param), 100.0))
                                     #param.add_(th.where(mask, normal, th.zeros_like(param)))
                             param.add_(normal)
                             assert not th.any(param.isinf()) and not th.any(param.isnan())

@@ -16,6 +16,7 @@ skip_confirm=false
 resume_from=0
 prefix=""
 prefix_data="useprefix"
+O=""
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -23,6 +24,10 @@ while [[ $# -gt 0 ]]; do
     -trval)
             mode="traineval"
             shift
+            ;;
+    -O)
+            O="-O"
+            shift 
             ;;
     -all)
             mode="all"
@@ -194,12 +199,12 @@ fi
 
 if [[ "$mode" == "all" || "$mode" == "genrt" ]]; then
     echo "Generating dataset for $env with expol $expol and algorithm $algo RETRAINING!"
-    python generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -rt -pareto -a $algo -cf algorithm_config_${algo}.json
-    python generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -pareto -a $algo -cf algorithm_config_${algo}.json
+    python $O generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -rt -pareto -a $algo -cf algorithm_config_${algo}.json
+    python $O generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -pareto -a $algo -cf algorithm_config_${algo}.json
 
 elif [[ "$mode" == "all" || "$mode" == "gen" ]]; then
     echo "Generating dataset for $env with expol $expol and algorithm $algo"
-    python generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -pareto -a $algo -cf algorithm_config_${algo}.json
+    python $O generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -pareto -a $algo -cf algorithm_config_${algo}.json
 fi
 if [[ "$mode" == "all" || "$mode" == "train" || "$mode" == "traineval" ]]; then
     
@@ -207,10 +212,10 @@ if [[ "$mode" == "all" || "$mode" == "train" || "$mode" == "traineval" ]]; then
     for l in "${L[@]}"; do
         for seed in "${seeds_list[@]}"; do
             if [[ $wandb == true ]]; then
-                python train_movsl.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${l}_seed${seed} -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -sname $sname -e $env -L $l -a $algo -s $seed -rs $resume_from -cf algorithm_config_${algo}.json &
+                python $O train_movsl.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${l}_seed${seed} -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -sname $sname -e $env -L $l -a $algo -s $seed -rs $resume_from -cf algorithm_config_${algo}.json &
                 pids+=($!)
             else
-                python train_movsl.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${l}_seed${seed} -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -sname $sname -e $env -L $l -a $algo -s $seed -rs $resume_from -cf algorithm_config_${algo}.json &
+                python $O train_movsl.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${l}_seed${seed} -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -sname $sname -e $env -L $l -a $algo -s $seed -rs $resume_from -cf algorithm_config_${algo}.json &
                 pids+=($!)
             fi
             
@@ -232,5 +237,5 @@ fi
 if [[ "$mode" == "all" || "$mode" == "eval" || "$mode" == "traineval" ]]; then
     seeds_str=$(IFS=,; echo "${seeds_list[*]}")
     Lstr=$(IFS=,; echo "${L[*]}")
-    python evaluate.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol} -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -sname $sname -e $env -strajs 200 -seps 0.05 -a $algo -seeds $seeds_str -Ltries $Lstr -cf algorithm_config_${algo}.json
+    python $O evaluate.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol} -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -sname $sname -e $env -strajs 200 -seps 0.05 -a $algo -seeds $seeds_str -Ltries $Lstr -cf algorithm_config_${algo}.json
 fi

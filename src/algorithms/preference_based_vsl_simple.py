@@ -63,6 +63,7 @@ class PVSL(object):
                                       disable_selection_after_initial_reward_iterations=False,
                                       use_running_dataset_in_assignment=False):
                 assert batch_size_per_agent is not None
+                assert reward_vector_function == self.train_reward_net
                 condition_using_base = True
                 condition_avoid_selection = False
                 if running_dataset is not None:
@@ -93,6 +94,7 @@ class PVSL(object):
                 
                     for it in range(initial_reward_learning_iterations):
                         condition_avoid_selection = disable_selection_after_initial_reward_iterations and not condition_using_base
+                        
                         if condition_avoid_selection:
                             if not hasattr(self, '_last_avoid_selection'):
                                 self._last_avoid_selection = True
@@ -109,14 +111,18 @@ class PVSL(object):
                             else:
                                 original = self.current_assignment
                             self.current_assignment = original
+                            self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
                             #print(self.current_assignment.value_systems)
                             #exit()
                         else:
+                            #print("DOING THIS")
                             self.current_assignment, original, mutated, is_protected = self.selection(best_assignments_list, 
                                                                                                 lexicographic_vs_first=lexicographic_vs_first, 
                                                                                                 num_iterations=max_iter, 
                                                                                                 iter_now=global_iter,
                                                                                                 initial_exploration_rate=initial_exploration_rate, mutation_prob=mutation_prob, mutation_scale=mutation_scale, dataset=base_dataset)
+                            #print(f"Selected assignment: {self.current_assignment} (mutated: {mutated}, protected: {is_protected}) from {len(best_assignments_list.memory)} candidates.")
+                            #input()
 
                         if not is_protected and not mutated:
                             assert self.current_assignment == original, f"Mut? {mutated} Current assignment {self.current_assignment} is not equal to original {original}"
@@ -144,7 +150,7 @@ class PVSL(object):
                             self.current_assignment.weights_per_cluster = self.value_system_per_cluster
                             assert np.allclose(np.array(self.current_assignment.value_systems), np.array(self.get_value_systems())), f"Static weights mismatch: {self.current_assignment.value_systems} vs {self.get_value_systems()}"
                             assert np.allclose(np.array(self.current_assignment.value_systems), self.mobaselines_agent.agent_mobaselines.sample_eval_weights(self.Lmax)), f"Static weights mismatch: {self.current_assignment.value_systems} vs {self.mobaselines_agent.agent_mobaselines.sample_eval_weights(self.Lmax)}"
-
+                        self.set_mode('train')
                         ##self.current_assignment.certify_cluster_assignment_consistency()
                         for cycle in range(em_cycles_per_iteration):
                             steps_now = initial_m_steps_per_cycle if cycle == 0 else m_steps_per_cycle
@@ -169,8 +175,8 @@ class PVSL(object):
                                 
                         self.set_mode('eval')
                         with th.no_grad():
-                            #self.current_assignment.grounding = self.train_reward_net
-                            #self.current_assignment.weights_per_cluster = self.value_system_per_cluster
+                            #self.current_assignment.weights_per_cluster = deepcopy(self.value_system_per_cluster)
+                            ##self.current_assignment.grounding = deepcopy(self.train_reward_net)
                             self.current_assignment.recalculate_discordances(val_set, indifference_tolerance=self.loss.model_indifference_tolerance)
                             #self.current_assignment.certify_cluster_assignment_consistency()
                             if mutated or is_protected:
@@ -191,9 +197,10 @@ class PVSL(object):
                     self.current_assignment = best_assignments_list.get_best_assignment(lexicographic_vs_first=False)[0].copy()
                     self.current_assignment.recalculate_discordances(val_set, indifference_tolerance=self.loss.model_indifference_tolerance)
                     self.current_assignment.certify_cluster_assignment_consistency()
-                    self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment)
+                    self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
                     self.current_assignment.grounding = self.train_reward_net
-
+                    self.current_assignment.weights_per_cluster = self.value_system_per_cluster
+                self.set_mode('eval')
                 return {'reward_net': self.train_reward_net, 'running_assignment': self.current_assignment, 'global_iter': global_iter+initial_reward_learning_iterations}
     def _pbmorl_reward_train_callback(self, base_dataset, 
                                       running_dataset, 
@@ -276,7 +283,7 @@ class PVSL(object):
 
         instance.current_assignment: ClusterAssignment = historic[-1] # type: ignore
         instance.Lmax = instance.current_assignment.Lmax
-        instance.update_training_networks_from_assignment(instance.value_system_per_cluster, instance.train_reward_net, instance.current_assignment)
+        instance.update_training_networks_from_assignment(instance.value_system_per_cluster, instance.train_reward_net, instance.current_assignment, only_grounding=False)
 
         return instance
 
@@ -317,6 +324,27 @@ class PVSL(object):
 
         self.debug_mode = debug_mode
         self.static_weights = False
+
+    def update_assignment_from_trained_networks(self, reference_assignment: ClusterAssignment, trained_reward_net, weights, only_grounding: bool = False):
+        if not only_grounding or reference_assignment.Lmax != len(weights):
+                for c in range(len(reference_assignment.weights_per_cluster)):
+                    reference_assignment.weights_per_cluster[c].load_state_dict(deepcopy(reference_assignment.weights_per_cluster[c].state_dict()))
+        else:
+            reference_assignment.weights_per_cluster =  weights
+        if only_grounding:
+            assert set(reference_assignment.value_systems) == set(self.get_value_systems()), f"Static weights mismatch: {reference_assignment.weights_per_cluster} vs {self.value_system_per_cluster}"
+        assert len(weights) == reference_assignment.Lmax, f"Value systems length mismatch: {len(weights)} vs {reference_assignment.Lmax}"
+        assert trained_reward_net.num_outputs == reference_assignment.grounding.num_outputs, f"Grounding network outputs mismatch: {trained_reward_net.num_outputs} vs {reference_assignment.grounding.num_outputs}"
+        assert trained_reward_net.__class__.__name__ == reference_assignment.grounding.__class__.__name__, f"Grounding network class mismatch: {trained_reward_net.__class__.__name__} vs {reference_assignment.grounding.__class__.__name__}"
+        if isinstance(reference_assignment.grounding, EnsembleRewardVectorModule):
+            assert isinstance(reference_assignment.grounding, EnsembleRewardVectorModule)
+            assert len(trained_reward_net.rewards) == len(reference_assignment.grounding.rewards), f"Grounding network models length mismatch: {len(trained_reward_net.rewards)} vs {len(reference_assignment.grounding.rewards)}"
+
+
+        reference_assignment.grounding.load_state_dict(deepcopy(trained_reward_net.state_dict()))
+        reference_assignment.grounding.requires_grad_(False)
+        for w in reference_assignment.weights_per_cluster:
+            w.requires_grad_(False)
 
     def update_training_networks_from_assignment(self, value_system_per_cluster: List[LinearAlignmentLayer], grounding: VectorModule, reference_assignment: ClusterAssignment, only_grounding: bool = False):
 
@@ -439,6 +467,8 @@ class PVSL(object):
             if algo == 'pc':
                 ret = self.train_pc(experiment_name=experiment_name, dataset=dataset, resume_from=resume_from,**kwargs)
             elif algo == 'pbmorl':
+                self.static_weights = True
+                kwargs['static_weights'] = True
                 ret = self.train_pbmorl(experiment_name=experiment_name, dataset=dataset, clustered_variant=False, resume_from=resume_from, **kwargs)
             elif algo == 'cpbmorl':
                 ret = self.train_pbmorl(experiment_name=experiment_name, dataset=dataset, clustered_variant=True, resume_from=resume_from, **kwargs)
@@ -478,16 +508,17 @@ class PVSL(object):
             if global_iter == 0:
                 self.policy_train_kwargs['reset_learning_starts'] = False
                 self.policy_train_kwargs['reset_num_timesteps'] = True
-                
-                self.global_step = 0
-                PVSL.reset_state(ename=experiment_name)
-                best_assignments_list = ClusterAssignmentMemory(
-                    max_size=1 if self.Lmax == 1 else max_assignment_memory, n_values=dataset.n_values )
-                self.repopulate_assignment_list(dataset, best_assignments_list, evenly_spaced=True)
-                self.current_assignment = best_assignments_list.get_best_assignment(lexicographic_vs_first=False)[0]
-                self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment)
-                self.policy_train_kwargs['reference_assignment'] = self.current_assignment
-                assert set(self.current_assignment.agent_to_vs_cluster_assignments.keys()) == set(list(dataset.agent_data.keys()))
+                with th.no_grad():
+                    self.global_step = 0
+                    PVSL.reset_state(ename=experiment_name)
+                    best_assignments_list = ClusterAssignmentMemory(
+                        max_size=1 if self.Lmax == 1 else max_assignment_memory, n_values=dataset.n_values )
+                    self.repopulate_assignment_list(dataset, best_assignments_list, evenly_spaced=True)
+                    
+                    self.current_assignment = best_assignments_list.get_best_assignment(lexicographic_vs_first=False)[0]
+                    self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
+                    self.policy_train_kwargs['reference_assignment'] = self.current_assignment
+                    assert set(self.current_assignment.agent_to_vs_cluster_assignments.keys()) == set(list(dataset.agent_data.keys()))
                 
             elif resume_from == global_iter:
                 self.policy_train_kwargs['reset_learning_starts'] = False
@@ -499,18 +530,23 @@ class PVSL(object):
                 )
                 self.current_assignment = historic[global_iter]
                 self.global_step = math.floor(global_iter/len(historic))*final_global_step # approximated global step...
-                self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment)
+                self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
                 self.policy_train_kwargs['reference_assignment'] = self.current_assignment
                 #self.Lmax = self.current_assignment.Lmax
             else:
                 self.policy_train_kwargs['reset_learning_starts'] = False
                 self.policy_train_kwargs['reset_num_timesteps'] = False
-                #self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment)
-                #self.policy_train_kwargs['reference_assignment'] = self.current_assignment
+                self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
+                self.policy_train_kwargs['reference_assignment'] = self.current_assignment
             
             #self.Lmax = self.current_assignment.Lmax
-            
+            #self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment)
+                
             self.current_assignment.grounding = self.train_reward_net
+            self.current_assignment.weights_per_cluster = self.value_system_per_cluster
+            if not clustered_variant:
+                self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
+           
             #self.current_assignment.recalculate_discordances(dataset=dataset, indifference_tolerance=self.loss.model_indifference_tolerance)
 
             self.mobaselines_agent.agent_mobaselines = train_Agent
@@ -519,6 +555,7 @@ class PVSL(object):
             sp = get_signature_params(train_Agent.train, self.policy_train_kwargs)
             print("CHECK!!", self.current_assignment.Lmax, self.Lmax, len(self.value_system_per_cluster), len(best_assignments_list))
             #input()
+            self.set_mode('eval')
             train_Agent.train(Ns=Ns, Nw=Nw, K=K, eval_env=self.eval_env,
                               gamma_preferences=discount_factor_preferences, 
                               dataset=dataset,
@@ -527,6 +564,7 @@ class PVSL(object):
                               reward_train_callback=
                               partial(self._pbmorl_reward_train_callback, 
                                     global_iter=global_iter,
+                                    
                                     m_steps_per_cycle=m_steps_per_cycle, 
                                     batch_size_reward_buffer=batch_size_reward_buffer,
                                     best_assignments_list=best_assignments_list) if not clustered_variant else partial(
@@ -596,7 +634,7 @@ class PVSL(object):
                     assert global_iter < len(historic), f"Historic does not contain the supplied resume_from ({resume_from}), maximum is {len(historic)}"
                     self.current_assignment: ClusterAssignment = historic[global_iter]
                     self.global_step = math.floor(global_iter/len(historic))*final_global_step # approximated global step...
-                    self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment)
+                    self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
                 
             # Training logic for the algorithm
             ret = self._clustered_pbmorl_reward_train_callback(base_dataset=train_set, running_dataset=None,
@@ -673,7 +711,7 @@ class PVSL(object):
         if not online_policy_update:
             _, historic, _, _, _ = PVSL.load_state(ename=experiment_name, agent_name=self.mobaselines_agent.name, ref_env=self.train_env, ref_eval_env=self.eval_env)
             self.current_assignment = historic[-1]
-            self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment)
+            self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
             self.mobaselines_agent = self.update_policy(dataset, iterations=policy_iterations)
         PVSL.save_state(ename=experiment_name, best_assignments_list=best_assignments_list, historic_dict=None, policy_per_cluster=self.mobaselines_agent, global_step=self.global_step, save_config=self.init_config())
         
@@ -683,11 +721,12 @@ class PVSL(object):
         best_assignments_list.initializing = True
         while len(best_assignments_list) < best_assignments_list.max_size:
             ca = generate_random_assignment(dataset, l_max=self.Lmax, alignment_layer_class=self.alignment_layer_class, alignment_layer_kwargs=self.alignment_layer_kwargs, ref_grounding=self.train_reward_net, seed=np.random.randint(0, 10000), evenly_spaced=evenly_spaced)
-                        
+            
             ca.recalculate_discordances(dataset, indifference_tolerance=self.loss.model_indifference_tolerance)
             ca.optimizer_state = self.optim.get_state(copy=True)
-            self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, ca)
+            self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, ca, only_grounding=self.static_weights)
             best_assignments_list.insert_assignment(ca.copy())
+            print("BA", best_assignments_list)
         best_assignments_list.initializing = False
 
     def wandb_log_cluster_metrics(self, assignment, global_iter, mode='train'):
@@ -890,17 +929,17 @@ class PVSL(object):
                         print(f"{color}{value}{Style.RESET_ALL}", end=', ')
                     print(f"), {cluster_colors_vs[best_cluster]} {self.value_system_per_cluster[best_cluster].get_alignment_layer()[0]} - VS Cluster {best_cluster}: {aid_likelihood_per_vs_cluster[best_cluster]}, {Style.RESET_ALL}")
 
-            
-            for cl, ags in enumerate(deepcopy(assignment_vs)):
+            asgin = deepcopy(assignment_vs)
+            for cl, ags in enumerate(asgin):
                 if len(ags) == 0:
                     continue
                 vsc = self.value_system_per_cluster[cl].get_alignment_layer()[0].detach().numpy()
-                for cl2, ags2 in enumerate(deepcopy(assignment_vs)): 
+                for cl2, ags2 in enumerate(asgin): 
                     if len(ags2) == 0 or cl2 == cl:
                         continue
                     
                     vsc2 = self.value_system_per_cluster[cl2].get_alignment_layer()[0].detach().numpy()
-                    if np.max(vsc - vsc2) <= 0.01:
+                    if np.max(abs(vsc - vsc2)) <= 0.01:
                                
                         if len(ags) >= len(ags2): # we choose the most popular weights
                             assignment_vs[cl].extend(assignment_vs[cl2])
@@ -927,16 +966,29 @@ class PVSL(object):
 
     def set_mode(self, mode: str):
         if not self.static_weights:
+            if hasattr(self, 'current_assignment'):
+                self.current_assignment.grounding.set_mode(mode)
+                for vs in self.current_assignment.weights_per_cluster:
+                    vs.requires_grad_(False)
             self.train_reward_net.set_mode(mode)
             for vs in self.value_system_per_cluster:
                 vs.requires_grad_(mode == 'train')
+            
         else:
+            if hasattr(self, 'current_assignment'):
+                self.current_assignment.grounding.set_mode(mode)
+                for vs in self.current_assignment.weights_per_cluster:
+                    vs.requires_grad_(False)
             self.train_reward_net.set_mode(mode)
             for vs in self.value_system_per_cluster:
                 vs.requires_grad_(False)
+            
+        check_grounding_value_system_networks_consistency_with_optim(self.train_reward_net, self.value_system_per_cluster, self.optim, only_grounding=self.static_weights)
+        #check_grounding_value_system_networks_consistency_with_optim(self.current_assignment.grounding, self.current_assignment.weights_per_cluster, self.optim, only_grounding=True, copies=True)
 
     def train_reward_models_no_clusters(self, dataset, global_step, n_optim_steps, batch_size_reward_buffer=32):
         train_losses = []
+        
         self.set_mode('train')
         for sum_ensemble in range(self.train_reward_net.n_models):
             self.train_reward_net.use_models(sum_ensemble)
@@ -976,9 +1028,9 @@ class PVSL(object):
                 self.update_training_networks_from_assignment(dummy_assignment.weights_per_cluster, self.train_reward_net, dummy_assignment, only_grounding=True)
 
                 t =time.time()
-                
-                prev_params_vs = deepcopy(dummy_assignment.weights_per_cluster)
-                prev_params_gr = deepcopy(OrderedSet(self.train_reward_net.rewards[sum_ensemble].parameters()))
+                if __debug__:
+                    prev_params_vs = deepcopy(dummy_assignment.weights_per_cluster)
+                    prev_params_gr = deepcopy(OrderedSet(self.train_reward_net.rewards[sum_ensemble].parameters()))
                 rt = time.time()
                 #print(f"\033[33mPREV PARAMS. BATCH SELECT back took {rt-t:.4f} seconds\033[0m {self.loss.per_agent}")
                 self.optim.zero_grad()
@@ -1007,9 +1059,10 @@ class PVSL(object):
                 self.loss.gradients(scalar_loss = loss, renormalization = renormalization)
                 rt = time.time()
                 #print(f"\033[33m GRADIENTS AND FORWARD back took {rt-t:.4f} seconds\033[0m")
-                next_params_vs = dummy_assignment.weights_per_cluster
-                next_params_gr = OrderedSet(self.train_reward_net.rewards[sum_ensemble].parameters())
                 if __debug__:
+                    next_params_vs = dummy_assignment.weights_per_cluster
+                    next_params_gr = OrderedSet(self.train_reward_net.rewards[sum_ensemble].parameters())
+                
                     for p, g in zip(next_params_vs, prev_params_vs):
                         assert all([gi.grad is None for gi in g.parameters()]), "Gradients must NOT be computed for THESE parameters."
                         assert all([pi.grad is None for pi in p.parameters()]), "Gradients must NOT be computed for THESE parameters."
@@ -1035,7 +1088,8 @@ class PVSL(object):
 
         # Perform sum over each array in each tuple inside train_losses:
         train_losses = [np.sum([x[i] for x in train_losses]) / self.train_reward_net.n_models for i in range(len(train_losses[0]))]
-
+        self.update_assignment_from_trained_networks(self.current_assignment, trained_reward_net=self.train_reward_net, weights=self.value_system_per_cluster, only_grounding=self.static_weights)
+        
 
         if self.debug_mode:
             print("Reward models trained successfully.")
@@ -1050,6 +1104,8 @@ class PVSL(object):
     
     def train_reward_models(self, dataset: VSLPreferenceDataset, global_step, n_optim_steps, batch_size_per_agent='full', transitions=True):
         #self.loss.set_parameters(params_gr=self.optim.params_gr, params_vs=self.optim.params_vs, optim_state=self.optim.get_state())
+        print("TRmodels", [w.get_alignment_layer()[0] for w in self.value_system_per_cluster])
+        print("Current assignment:", self.current_assignment.value_systems)
         
         self.set_mode('train')
         train_losses = []
@@ -1061,7 +1117,7 @@ class PVSL(object):
         for sum_ensemble in range(self.train_reward_net.n_models):
             self.train_reward_net.use_models(sum_ensemble)
 
-            self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
+            #self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
 
             for i in range(n_optim_steps):
                 optim_step = global_step + i
@@ -1078,6 +1134,8 @@ class PVSL(object):
                     cluster_fidxs[int(self.current_assignment.agent_to_vs_cluster_assignments[ag])].extend(fidxsag)
                 self.optim.zero_grad()
                 #print(len(fragments1[0]))
+                check_grounding_value_system_networks_consistency_with_optim(self.train_reward_net, self.value_system_per_cluster, self.optim, only_grounding=self.static_weights, check_grads=True)
+                
                 output = self.loss.forward(fragments1=fragments1, fragments2=fragments2,
                                             reward_vector_module=self.train_reward_net,
                                             weights_per_cluster=self.value_system_per_cluster,
@@ -1086,7 +1144,7 @@ class PVSL(object):
                                             preferences=util.safe_to_tensor(preferences, dtype=self.train_reward_net.desired_dtype).requires_grad_(False), 
                                             preferences_with_grounding=util.safe_to_tensor(preferences_with_grounding, dtype=self.train_reward_net.desired_dtype).requires_grad_(False))
                 loss_vs, loss_gr, loss_gr_per_vi = output.loss
-
+                
                 loss =  loss_vs  + loss_gr # + loss_policy??? TODO.
                 renormalization = 1.0
                 """if batch_size_per_agent != 'full':
@@ -1108,6 +1166,9 @@ class PVSL(object):
         # Perform sum over each array in each tuple inside train_losses:
         train_losses = [np.sum([x[i] for x in train_losses]) for i in range(len(train_losses[0]))]
         
+        self.update_assignment_from_trained_networks(self.current_assignment, trained_reward_net=self.train_reward_net, weights=self.value_system_per_cluster, only_grounding=self.static_weights)
+        
+        #input("PAUSED")
 
         if self.debug_mode:
             print("Reward models trained successfully.")
@@ -1168,12 +1229,17 @@ class EnvelopeClusteredPBMORL(EnvelopePBMORL):
                 weights_base.update(eqweights)
                 return weights_base
                 
-
     
+    @override
     def reward_training(self, Ns, Nw, H, gamma_preferences, reward_train_callback, max_reward_buffer_size, qualitative_preferences=True):
+        #print("RW1?? RUNNING ASSIGNMENT", self.running_assignment)
+        #print(self.running_assignment.value_systems if self.running_assignment is not None else None)
+        #input("Press Enter to continue...")
         return_dict = super().reward_training(Ns, Nw, H, gamma_preferences, reward_train_callback, max_reward_buffer_size, qualitative_preferences=qualitative_preferences)
         self.running_assignment = return_dict.get('running_assignment', None)
-        
+        #print("RW2?? RUNNING ASSIGNMENT", self.running_assignment)
+        #print(self.running_assignment.value_systems if self.running_assignment is not None else None)
+        #input("Press Enter to continue...")
         return return_dict
     
     def sample_traj_from_dataset(self,dataset: VSLPreferenceDataset, Ns, gamma):
@@ -1243,11 +1309,16 @@ class EnvelopeClusteredPBMORL(EnvelopePBMORL):
         assert v_rews_real.shape[0:1] == ( Ns, ), f"Rewards shape mismatch: {v_rews_real.shape} vs {(dataset.n_values, Ns)}"
         assert drews.shape[0:2] == ( Ns, dataset.n_values), f"Rewards shape mismatch: {drews.shape} vs {(dataset.n_values, Ns)}"
         return (states1, acts1, next_states1, dones1), v_rews_real, v_rews, util.safe_to_tensor(drews_real, device=self.device), util.safe_to_tensor(drews, device=self.device)
-    def train(self, total_timesteps, Ns, Nw, H, K, gamma_preferences, reward_train_callback, dataset = None, eval_env=None, ref_point=None, known_pareto_front=None, weight=None, total_episodes=None, reset_num_timesteps=True, eval_freq=10000, num_eval_weights_for_front=100, num_eval_episodes_for_front=5, num_eval_weights_for_eval=50, qualitative_preferences=True, reset_learning_starts=False, verbose=False, max_reward_buffer_size=None, reference_assignment=None):
+    def train(self, total_timesteps, Ns, Nw, H, K, gamma_preferences, reward_train_callback, dataset = None, eval_env=None, ref_point=None, known_pareto_front=None, weight=None, total_episodes=None, reset_num_timesteps=True, eval_freq=10000, num_eval_weights_for_front=100, num_eval_episodes_for_front=5, num_eval_weights_for_eval=50, qualitative_preferences=True, reset_learning_starts=False, verbose=False, max_reward_buffer_size=None, reference_assignment: ClusterAssignment =None):
         self.running_assignment = reference_assignment
+        for i, w in enumerate(reference_assignment.weights_per_cluster):
+            print(f"Cluster {i}: {[p.requires_grad for p in w.parameters()]}")
+            assert not any([p.requires_grad for p in w.parameters()]), "Weights in reference assignment must be frozen (requires_grad=False)."
+            
         return super().train(total_timesteps, Ns, Nw, H, K, gamma_preferences, reward_train_callback, dataset, eval_env, ref_point, known_pareto_front, weight, total_episodes, reset_num_timesteps, eval_freq, num_eval_weights_for_front, num_eval_episodes_for_front, num_eval_weights_for_eval, qualitative_preferences, reset_learning_starts, verbose, max_reward_buffer_size)
     @override
     def overseer_new_preferences(self, Ns, Nw, H, gamma_preferences, max_reward_buffer_size, discordance_based_agent_selection=False, qualitative_preferences=True):
+        
         with th.no_grad():
             assert self.running_assignment is not None, "Running assignment must be set before calling overseer_new_preferences."
             from_dataset_2 = False
@@ -1395,6 +1466,7 @@ class EnvelopeClusteredPBMORL(EnvelopePBMORL):
                                         agent_ids=[aname for _ in range(len(fpairs_w))])
                 rt = time.time()
                 print(f"\033[35mPush to running dataset took {rt-t:.4f} seconds\033[0m")
+        
     def __sample_batch_experiences(self):
         return self.replay_buffer.sample(self.batch_size, to_tensor=True, device=self.device)
     
@@ -1413,8 +1485,9 @@ class EnvelopeClusteredPBMORL(EnvelopePBMORL):
             weights =[] # 50% of times sample from running_assignment
             for _ in range(n):
                 if self.cluster_weights_in_envelope_prob == 1.0:
-                    idx = np.random.choice(len(self.running_assignment.value_systems))
-                    w = self.running_assignment.value_systems[idx]
+                    # MODOPURE!!!!
+                    idx = np.random.choice(len(self.running_assignment.value_systems_active))
+                    w = self.running_assignment.value_systems_active[idx]
                 elif np.random.rand() < self.cluster_weights_in_envelope_prob:
                     idx = np.random.randint(0, len(self.running_assignment.value_systems_active))
                     assert len(self.running_assignment.value_systems_active) == len([_ for asg in self.running_assignment.assignments_vs if len(asg) > 0 ])

@@ -311,14 +311,14 @@ if __name__ == "__main__":
                                objective_names=environment_data['values_names'],
                                known_front_data=train_kwargs_restarted.get(
                                    'known_pareto_front', None),
-                               save_path=os.path.join(run_dir, f'expert_pareto_front'), show=False)
+                               save_path=os.path.join(run_dir, f'expert_pareto_front'), show=False, fontsize=parser_args.fontsize)
         visualize_pareto_front(title="Expert Solutions",
                                objective_names=environment_data['values_names'],
                                learned_front_data=unfiltered_front_and_weights,
                                
                                known_front_data=train_kwargs_restarted.get(
                                    'known_pareto_front', None),
-                               save_path=os.path.join(run_dir, f'expert_solutions'), show=False)
+                               save_path=os.path.join(run_dir, f'expert_solutions'), show=False, fontsize=parser_args.fontsize)
         if parser_args.remain_with_pareto_optimal_agents:
             society_data['agents'] = []
             for iw, weight in enumerate(pareto_front_and_weights[1]):

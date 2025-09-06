@@ -518,7 +518,8 @@ class EnvelopePBMORL(EnvelopeCustomReward):
     def reward_training(self, Ns, Nw, H, gamma_preferences, reward_train_callback, max_reward_buffer_size, qualitative_preferences):
         assert isinstance(self.replay_buffer, CustomRewardReplayBuffer), "Replay buffer must be an instance of CustomRewardReplayBuffer to use reward training."
         assert self.replay_buffer.relabel_buffer, "Replay buffer must have relabel_buffer set to True to use reward training."
-        assert self.replay_buffer._original_rewards is not None, "Original rewards must be stored in the replay buffer to use reward training."
+        if self.replay_buffer.maintain_original_reward:
+            assert self.replay_buffer._original_rewards is not None, "Original rewards must be stored in the replay buffer to use reward training."
 
         
         t = time.time()
@@ -694,7 +695,6 @@ class EnvelopePBMORL(EnvelopeCustomReward):
                 self.reward_training(Ns, Nw, H, gamma_preferences, reward_train_callback, max_reward_buffer_size, qualitative_preferences) # ONly change this.
                 #input()
             if self.global_step >= self.learning_starts:
-                
                 self.update()
             
 

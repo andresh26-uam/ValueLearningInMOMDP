@@ -892,6 +892,7 @@
                         "max_grad_norm": 0.1,
                         "learning_rate": 0.0005,
                         "buffer_with_weights": false,
+                        
                         "per": true,
                         "per_alpha": 0.6,
                         "gamma": 1.0,

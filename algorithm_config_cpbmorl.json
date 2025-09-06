@@ -222,7 +222,7 @@
             "use_bias": [true, true, true, false],
             "hid_sizes": [128, 128, 128],
             "negative_grounding_layer": false,
-            "clamp_rewards": false,
+            "clamp_rewards": [-100.0, 100.0],
 
             "normalize_output": false
         },
@@ -311,7 +311,7 @@
                             "reset_learning_starts": false,
                             "verbose": true
                         },
-                        "cluster_weights_in_envelope_prob": 0.5,
+                        "cluster_weights_in_envelope_prob": 1.0,
                         "per": true,
                         "per_alpha": 0.6,
                         "estimated_horizon": 30,
@@ -340,12 +340,12 @@
 
                 "optimizer_kwargs": {
                     "lr": 0.0001,
-                    "lr_grounding": 0.0001,
+                    "lr_grounding": 0.0003,
                     "lr_value_system": 0.002,
                     "lr_lambda": 0.05,
                     "initial_lambda": 1.0,
                     "weight_decay": 0.0001,
-                    "max_grad_norm": 1000.0,
+                    "max_grad_norm": 10.0,
                     "lambda_decay": 0.00005
                 },
                 "optimizer_class": "lagrange",
@@ -945,22 +945,22 @@
                         "buffer_with_weights": true,
                         "max_grad_norm": 10.0,
                         "num_sample_w": 10,
-                        "learning_rate": 0.0008,
+                        "learning_rate": 0.001,
                         "gamma": 1.0,
                         "batch_size": 256,
                         "net_arch": [128, 128, 128],
-                        "buffer_size": 120000,
-                        "initial_epsilon": 0.8,
+                        "buffer_size": 200000,
+                        "initial_epsilon": 0.75,
                         "final_epsilon": 0.05,
-                        "epsilon_decay_steps": 120000,
+                        "epsilon_decay_steps": 150000,
                         "initial_homotopy_lambda": 0.05,
                         "final_homotopy_lambda": 0.8,
-                        "homotopy_decay_steps": 120000,
+                        "homotopy_decay_steps": 150000,
                         "learning_starts": 500,
                         "envelope": true,
                         "gradient_updates": 2,
                         "target_net_update_freq": 1000,
-                        "tau": 0.0002,
+                        "tau": 0.0001,
                         "experiment_name": "envelopeDST_learner"
                     }
                 },
@@ -968,12 +968,12 @@
 
                 "optimizer_kwargs": {
                     "lr": 0.0001,
-                    "lr_grounding": 0.0001,
+                    "lr_grounding": 0.0005,
                     "lr_value_system": 0.001,
                     "lr_lambda": 0.05,
                     "initial_lambda": 1.0,
                     "weight_decay": 0.0001,
-                    "max_grad_norm": 10.0,
+                    "max_grad_norm": 1000.0,
                     "lambda_decay": 0.00005
                 },
                 "optimizer_class": "lagrange",
@@ -1007,15 +1007,15 @@
                     "batch_size_per_agent": 50,
                     "em_cycles_per_iteration": 2,
                     "initial_exploration_rate": 0.25,
-                    "initial_reward_learning_iterations": "upto:0.9",
+                    "initial_reward_learning_iterations": "upto:0.85",
                     "mutation_prob": 0.1,
                     "mutation_scale": 0.1,
                     "lexicographic_vs_first": true,
-                    "initial_m_steps_per_cycle": 3,
+                    "initial_m_steps_per_cycle": 2,
                     "max_assignment_memory": 5,
                     "max_reward_buffer_size": 32000,
                     "batch_size_reward_buffer": 128,
-                    "m_steps_per_cycle": 3,
+                    "m_steps_per_cycle": 2,
                     "policy_train_kwargs": {
                     }
                 }

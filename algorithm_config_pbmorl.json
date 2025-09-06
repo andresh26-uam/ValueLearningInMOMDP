@@ -150,7 +150,7 @@
                             "reset_num_timesteps": false,
                             "reset_learning_starts": false
                         },
-                        "per": true,
+                        "per": false,
                         "per_alpha": 0.6,
 
                         "estimated_horizon": 100,
@@ -162,8 +162,8 @@
                         "gamma": 1.0,
                         "batch_size": 256,
                         "net_arch": [128, 128, 128],
-                        "buffer_size": 80000,
-                        "initial_epsilon": 0.8,
+                        "buffer_size": 200000,
+                        "initial_epsilon": 0.75,
                         "final_epsilon": 0.05,
                         "epsilon_decay_steps": 100000,
                         "initial_homotopy_lambda": 0.05,
@@ -172,8 +172,8 @@
                         "learning_starts": 10000,
                         "envelope": true,
                         "gradient_updates": 2,
-                        "target_net_update_freq": 500,
-                        "tau": 0.0002,
+                        "target_net_update_freq": 1000,
+                        "tau": 0.0001,
                         "experiment_name": "envelopeDST_learner"
                     }
                 },
@@ -181,12 +181,12 @@
 
                 "optimizer_kwargs": {
                     "lr": 0.0001,
-                    "lr_grounding": 0.002,
-                    "lr_value_system": 0.005,
+                    "lr_grounding": 0.001,
+                    "lr_value_system": 0.002,
                     "lr_lambda": 0.0,
                     "initial_lambda": 0.0,
                     "weight_decay": 0.0000,
-                    "max_grad_norm": 10.0,
+                    "max_grad_norm": 1000.0,
                     "lambda_decay": 0.0000
                 },
                 "optimizer_class": "lagrange",
@@ -199,7 +199,7 @@
                     "vs_apply_on_misclassified_pairs_only": false,
                     "confident_penalty": 0.0,
                     "cluster_similarity_penalty": 0.0,
-                    "conciseness_penalty_reduction": "min",
+                    "conciseness_penalty_reduction": "mean",
                     "missclassification_min_weighting": 1.0,
                     "per_agent": false,
                     "label_smoothing": 0.0},
@@ -212,6 +212,7 @@
                     "K": 500,
                     "Ns": 300,
                     "Nw": 10,
+                    "static_weights":false,
                     "max_assignment_memory": 5,
                     "max_reward_buffer_size": 32000,
                     "batch_size_reward_buffer": 128,
@@ -672,7 +673,7 @@
             }
         }
     },
-"ffmo": {
+"ffmo_of_def10old": {
         "name": "FireFightersMO-v0",
         "n_values": 2,
         "values_names": ["Professionalism", "Proximity"],
@@ -850,6 +851,205 @@
                     "batch_size_reward_buffer": 256,
                     "m_steps_per_cycle": 2,
                     "max_assignment_memory": 1,
+                    "policy_train_kwargs": {
+                        
+                    }
+                }
+
+                
+            }
+        }
+    },
+ "ffmo": {
+        "name": "FireFightersMO-v0",
+        "n_values": 2,
+        "values_names": ["Professionalism", "Proximity"],
+        "values_short_names": ["Prof", "Prox"],
+        "horizon": 30,
+
+        "assume_variable_horizon": false,
+        
+        
+        "basic_profiles": [[1.0, 0.0], [0.0,1.0]],
+        "profiles_colors": [[1,0,0], [0,0,1]],
+        "feature_selection": "features_one_hot",
+        "initial_state_distribution": "fixed",
+        "environment_is_stochastic": false,
+        "discount": 1.0,
+        "default_reward_net": {
+            "use_state": true,
+            "use_action": true,
+            "use_next_state": false,
+            "use_done": false,
+            "basic_layer_classes": ["nn.Linear", "nn.Linear", "nn.Linear", "ConvexAlignmentLayer"],
+            "activations": ["nn.Tanh", "nn.Tanh", "nn.Tanh", "nn.Identity"],
+            "use_bias": [true, true, true, false],
+            "hid_sizes": [128, 128, 128],
+            "negative_grounding_layer": false,
+            "clamp_rewards": [-100.0, 100.0],
+
+            "normalize_output": false
+        },
+        "reward_feature_extractor": "BaseRewardFeatureExtractor",
+        "_options_for_feature_extractors": ["BaseRewardFeatureExtractor", "ObservationMatrixFeatureExtractor"],
+        "default_optimizer_kwargs": {
+            "lr": 0.01,
+            "weight_decay": 0.0000
+        },
+        "default_optimizer_class": "lagrange",
+        "algorithm_config": {
+            "pbmorl": {
+                "debug_mode": true,
+                "reward_net": {},
+                "default_wrappers": [
+                    {
+                        "type": "FlattenObservation",
+                        "kwargs": {}
+                    }
+                    
+                ],
+                
+                
+                "discount_factor": 1.0,
+
+                "expert_policy_class": "ppo_learner",
+                "expert_policy_kwargs": {
+                    
+                    "envelope":{
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+
+                        "__vectorizer": {
+                            "type": "DummyVecEnv",
+                            "kwargs": {
+                                "num_envs": 5
+                            }
+                        },
+                        "train_kwargs": {
+                            "total_timesteps": 120000,
+                            "ref_point": [-50, -50],
+                            "known_pareto_front": "[[4.6, 5.4],[5.7, 5.3],[5.9, 5.1],[6.7, 5. ],[6.8, 4.6],[7.6, 4.5],[7.8, 4. ]]",
+                            "num_eval_weights_for_front": 50,
+                            "num_eval_episodes_for_front": 50,
+                            "eval_freq": 10000,
+                            "reset_num_timesteps": false,
+                            "reset_learning_starts": false,
+                            "verbose": true
+                        },
+                        "max_grad_norm": 0.1,
+                        "learning_rate": 0.0005,
+                        "gamma": 0.999,
+                        "num_sample_w": 11,
+                        "batch_size": 32,
+                        "net_arch": [256, 128, 128, 128],
+                        "buffer_size": 100000,
+                        "initial_epsilon": 0.5,
+                        "final_epsilon": 0.0,
+                        "epsilon_decay_steps": 100000,
+                        "initial_homotopy_lambda": 0.0,
+                        "final_homotopy_lambda": 1.0,
+                        "homotopy_decay_steps": 100000,
+                        "learning_starts": 1000,
+                        "envelope": true,
+                        "gradient_updates": 1,
+                        "target_net_update_freq": 1500,
+                        "tau": 1,
+                        "experiment_name": "envelopeFF_expert"
+                    }
+                },
+
+                "learning_policy_class": "EnvelopePBMORL",
+                "learning_policy_kwargs": {
+                    "EnvelopePBMORL":{
+                        "eval_extra_wrappers": [],
+                        "train_extra_wrappers": [],
+                        "train_kwargs": {
+                            "total_timesteps": 150000,
+                    "qualitative_preferences": true,
+                            "ref_point": [-50, -50],
+                            "known_pareto_front": "[[4.6, 5.4],[5.7, 5.3],[5.9, 5.1],[6.7, 5. ],[6.8, 4.6],[7.6, 4.5],[7.8, 4. ]]",
+                            "num_eval_weights_for_front": 11,
+                            "num_eval_episodes_for_front": 50,
+                            "eval_freq": 1000000,
+                            "reset_num_timesteps": false,
+                            "reset_learning_starts": false,
+                            "verbose": true
+                        },
+                        "per": false,
+                        "per_alpha": 0.6,
+                        "estimated_horizon": 30,
+                        "buffer_with_weights": true,
+                        "maintain_original_reward": true,
+                        "max_grad_norm": 10.0,
+                        "learning_rate": 0.0005,
+                        "gamma": 1.0,
+                        "num_sample_w": 10,
+                        "batch_size": 256,
+                        "net_arch": [128, 128,128],
+                        "buffer_size": 1000000,
+                        "initial_epsilon": 0.5,
+                        "final_epsilon": 0.05,
+                        "epsilon_decay_steps": 150000,
+                        "initial_homotopy_lambda": 0.05,
+                        "final_homotopy_lambda": 0.5,
+                        "homotopy_decay_steps": 150000,
+                        "learning_starts": 500,
+                        "envelope": true,
+                        "gradient_updates": 2,
+                        "target_net_update_freq": 1500,
+                        "tau": 0.0001,
+                        "experiment_name": "envelopeFF_learner"
+                    }
+                },
+
+                "optimizer_kwargs": {
+                    "lr": 0.0001,
+                    "lr_grounding": 0.0003,
+                    "lr_value_system": 0.002,
+                    "lr_lambda": 0.00,
+                    "initial_lambda": 0.0,
+                    "weight_decay": 0.0001,
+                    "max_grad_norm": 1000.0,
+                    "lambda_decay": 0.00000
+                },
+                "optimizer_class": "lagrange",
+                "learn_stochastic_policy": true,
+                "loss_class": "lagrange",
+                "n_rewards_for_ensemble": 1,
+                "loss_kwargs": {
+                    "model_indifference_tolerance": 0.05,
+                    "gr_apply_on_misclassified_pairs_only": false, 
+                    "vs_apply_on_misclassified_pairs_only": false,
+                    "confident_penalty": 0.0,
+                    "cluster_similarity_penalty": 0.0,
+                    "conciseness_penalty_reduction": "mean",
+                    "missclassification_min_weighting": 1.0, 
+                    "per_agent": false, 
+                    "label_smoothing": 0.1},
+                "_loss_class_options": ["cross_entropy_cluster", "soba", "lagrange"],
+                
+                "train_kwargs": {
+                    "max_iter": 100,
+                    "discount_factor_preferences": 1.0,
+                    "static_weights": true,
+                    "H": null,
+                    "K": 500,
+                    "Ns": 300,
+                    "Nw": 10,
+                    "batch_size_in_running_dataset_for_cluster_assignment": 500, 
+                    "use_running_dataset_in_assignment": true,
+                    "initial_reward_learning_iterations": "upto:0.85",
+                    "max_reward_buffer_size": 100000,
+                    "batch_size_per_agent": 50,
+                    "batch_size_reward_buffer": 256,
+                    "em_cycles_per_iteration": 2,
+                    "lexicographic_vs_first": true,
+                    "m_steps_per_cycle": 3,
+                    "max_assignment_memory": 5,
+                    "mutation_prob": 0.1,
+                    "initial_m_steps_per_cycle": 3,
+                    "mutation_scale": 0.1,
+                    "initial_exploration_rate": 0.25,
                     "policy_train_kwargs": {
                         
                     }
