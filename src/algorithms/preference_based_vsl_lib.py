@@ -892,6 +892,7 @@ class BaseVSLClusterRewardLoss(preference_comparisons.RewardLoss):
             accuracy_vs_per_agent[aid] = float(accuracy_vs_per_agent[aid])"""
 
             self.last_accuracy_gr = np.array(accuracy_gr)
+            self.last_accuracy_vs = accuracy_vs
 
             metrics = {}
             metrics["global_accvs"] = accuracy_vs
@@ -1256,7 +1257,7 @@ class ConstrainedLoss(VSLCustomLoss):
         with th.no_grad():
             for vi in range(len(self.lagrange_multipliers)):
                 self.lagrange_multipliers[vi].requires_grad_(True)
-            print("LAMBDA b", self.lagrange_multipliers,  self.last_accuracy_gr, self.best_accuracies)  
+            print("LAMBDA b", self.lagrange_multipliers, self.last_accuracy_vs, self.last_accuracy_gr, self.best_accuracies)  
 
             farthest_l = 0
             max_diff = float('-inf')

@@ -204,7 +204,7 @@ elif [[ "$mode" == "all" || "$mode" == "gen" ]]; then
     python $O generate_dataset_mo.py -e $env -sname $sname -dname ${prefix_data}mo_${env}_${expol} -expol $expol -gentr -genpf -ts=0.5 -pareto -a $algo -cf algorithm_config_${algo}.json
 fi
 if [[ "$mode" == "all" || "$mode" == "train" || "$mode" == "traineval" ]]; then
-    if [[ $wandb == true ]]; then
+    if [[ "$wandb" == "true" ]]; then
         python $O train_movsl.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${L}_seed${seed} -sname $sname  -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -e $env -L $L -a $algo -s $seed -wb -rs $resume_from -cf algorithm_config_${algo}.json
     else 
         python $O train_movsl.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${L}_seed${seed} -sname $sname  -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -e $env -L $L -a $algo -s $seed -rs $resume_from -cf algorithm_config_${algo}.json

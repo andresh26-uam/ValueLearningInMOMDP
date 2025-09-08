@@ -149,9 +149,9 @@ def plot_learned_to_expert_policies(expert_policy, vsl_algo: PVSL, vsi_or_vgl='v
 
         axesUp[i].set_title(
             f'{tuple([float("{0:.3f}".format(v)) for v in learned_al])}\nSTD: {tuple([float("{0:.3f}".format(v)) for v in std_learned_al])}')
-        axesUp[i].set_xlabel('Action')
+        axesUp[i].set_xlabel('Action', fontsize=fontsize)
         axesUp[i].set_ylabel(
-            f'State\nSTD: {float("{0:.4f}".format(std_lpol)) if isinstance(learnt_policy, list) else 0.0}')
+            f'State\nSTD: {float("{0:.4f}".format(std_lpol)) if isinstance(learnt_policy, list) else 0.0}', fontsize=fontsize)
 
         
         # Plot the second matrix
@@ -162,9 +162,9 @@ def plot_learned_to_expert_policies(expert_policy, vsl_algo: PVSL, vsi_or_vgl='v
         im2 = axesDown[i].imshow(pol, cmap='viridis', interpolation='nearest',
                                  vmin=0, vmax=1, aspect=pol.shape[1]/pol.shape[0])
 
-        axesDown[i].set_title(f'{al}')
-        axesDown[i].set_xlabel('Action')
-        axesDown[i].set_ylabel('State')
+        axesDown[i].set_title(f'{al}', fontsize=fontsize)
+        axesDown[i].set_xlabel('Action', fontsize=fontsize)
+        axesDown[i].set_ylabel('State', fontsize=fontsize)
 
     subfigs[0].colorbar(im1, ax=axesUp, orientation='vertical',
                         label='State-Action Prob.')
@@ -281,7 +281,7 @@ def generate_expert_and_learned_trajs(vsl_algo: PVSL, assignment_test: ClusterAs
     return generated_experttrajs_per_agent, generated_learnedtrajs_per_cluster
 
 
-def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir, agent_data, cluster_assignment: ClusterAssignment, namefig='return_pairs', show=False, gamma=1.0):
+def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir, agent_data, cluster_assignment: ClusterAssignment, namefig='return_pairs', show=False, gamma=1.0, fontsize=16, values_names=None):
     """
     Plots learned vs real returns for trajectories, colored by cluster.
 
@@ -305,9 +305,15 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
 
     for i in range(value_dim):
         ax = axs[i]
-        ax.set_title(f"Learned vs Real Returns (Value {i+1}) by Cluster")
-        ax.set_xlabel("Real Return")
-        ax.set_ylabel("Learned Return")
+        if values_names is None:
+            ax.set_title(f"Learned vs Real Alignment (Value {i+1}) by Cluster", fontsize=fontsize+2)
+            ax.set_xlabel(f"Real Alignment with V{i+1}", fontsize=fontsize)
+            ax.set_ylabel(f"Learned Alignment with V{i+1}", fontsize=fontsize)
+        else:
+            ax.set_title(f"Learned vs Real Alignment ({values_names[i]}) by Cluster", fontsize=fontsize+2)
+            ax.set_xlabel(f"Real Alignment with {values_names[i]}", fontsize=fontsize)
+            ax.set_ylabel(f"Learned Alignment with {values_names[i]}", fontsize=fontsize)
+        ax.tick_params(axis='both', labelsize=fontsize)
 
         
         # Normalize learned rewards to match the range of real rewards, then plot x=y line for reference
@@ -349,9 +355,10 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
                     learned = (learned - min_learned) / (max_learned - min_learned) * (max_real - min_real) + min_real
                 real_returns.append(real)
                 learned_returns.append(learned)
-            ax.scatter(real_returns, learned_returns, color=color, alpha=0.5, label=f'Cluster {cid+1}')
+            ax.scatter(real_returns, learned_returns, color=color, alpha=0.5, 
+                       label=f'Cl. {cid+1} - VS: {tuple([float("{0:.3f}".format(v)) for v in transform_weights_to_tuple(cluster_assignment.get_value_system(cid))])}', marker='o')
 
-        ax.legend()
+        ax.legend(fontsize=fontsize)
         ax.grid(True)
     plt.tight_layout()
 
@@ -377,9 +384,10 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
         agents_cid = cluster_to_agents[cid]
         assert len(agents_cid) > 0
         ax = axs[cid_index]
-        ax.set_title(f"Cluster {cid+1} - Learned vs Real Returns")
-        ax.set_xlabel("Real Return")
-        ax.set_ylabel("Learned Return")
+        ax.set_title(f"Cluster {cid} (VS: {tuple([float('{0:.3f}'.format(v)) for v in transform_weights_to_tuple(cluster_assignment.get_value_system(cid))])}) - Learned vs Real Returns")
+        ax.set_xlabel("Real Return", fontsize=fontsize )
+        ax.set_ylabel("Learned Return", fontsize=fontsize )
+        ax.tick_params(axis='both', labelsize=fontsize)
         
         all_real = [rollout.discounted_sum(traj.rews_real, gamma=gamma) for aid, trajs in trajs_by_agent.items() for traj in trajs if aid in cluster_to_agents[cid]]
         all_learned = [rollout.discounted_sum(traj.rews, gamma=gamma) for aid, trajs in trajs_by_agent.items() for traj in trajs if aid in cluster_to_agents[cid]]
@@ -426,11 +434,11 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
                 real_returns.append(real)
                 learned_returns.append(learned)
         if real_returns and learned_returns:
-            agent_vs = transform_weights_to_tuple(cluster_assignment.get_value_system(cid))
-            label = f'Cluster VS: '
-            if agent_vs is not None:
-                label += f'{tuple([float("{0:.3f}".format(v)) for v in agent_vs])}'
-            ax.scatter(real_returns, learned_returns, color=cluster_colors[cid], alpha=0.5, label=label, marker='x')
+            cvs = transform_weights_to_tuple(cluster_assignment.get_value_system(cid))
+            label = f'Cl. {cid} - VS: '
+            if cvs is not None:
+                label += f'{tuple([float("{0:.3f}".format(v)) for v in cvs])}'
+            ax.scatter(real_returns, learned_returns, color=cluster_colors[cid], alpha=0.5, label=label, marker='o')
         
         
         min_val = min(min_val_real, min_val_learned)
@@ -622,16 +630,16 @@ def plot_learned_and_expert_rewards(vsl_algo, learned_rewards_per_al_func, cmap=
 
         axesUp[i].set_title(
             f'{tuple([float("{0:.3f}".format(v)) for v in learned_al])}\nSTD: {tuple([float("{0:.3f}".format(v)) for v in std_learned_al])}')
-        axesUp[i].set_xlabel('Action')
+        axesUp[i].set_xlabel('Action', fontsize=fontsize)
         axesUp[i].set_ylabel(
-            f'State\nSTD: {float("{0:.4f}".format(std_reward_al)) if isinstance(learned_rewards_per_al_func, list) else 0.0}')
+            f'State\nSTD: {float("{0:.4f}".format(std_reward_al)) if isinstance(learned_rewards_per_al_func, list) else 0.0}', fontsize=fontsize)
 
         # Plot the expert matrix
         im2 = axesDown[i].imshow(vsl_algo.env.reward_matrix_per_align_func(
             al), cmap=cmap, interpolation='nearest', aspect=learned_reward_al.shape[1]/learned_reward_al.shape[0])
-        axesDown[i].set_title(f'{al}')
-        axesDown[i].set_xlabel('Action')
-        axesDown[i].set_ylabel('State')
+        axesDown[i].set_title(f'{al}', fontsize=fontsize)
+        axesDown[i].set_xlabel('Action', fontsize=fontsize)
+        axesDown[i].set_ylabel('State', fontsize=fontsize)
 
     subfigs[0].colorbar(im1, ax=axesUp, orientation='vertical', label='Reward')
     subfigs[1].colorbar(
@@ -729,17 +737,17 @@ def plot_learned_and_expert_occupancy_measures(vsl_algo: PVSL,
         axesUp[i].set_title(
             f'{tuple([float("{0:.3f}".format(v)) for v in learned_al])}\nSTD: {tuple([float("{0:.3f}".format(v)) for v in std_learned_al])}')
         axesUp[i].set_xlabel(
-            f'State\nSTD: {float("{0:.4f}".format(std_oc)) if isinstance(learned_rewards_per_al_func, list) else 0.0}')
+            f'State\nSTD: {float("{0:.4f}".format(std_oc)) if isinstance(learned_rewards_per_al_func, list) else 0.0}', fontsize=fontsize)
         if use_action_visitations:
-            axesUp[i].set_ylabel('Act')
+            axesUp[i].set_ylabel('Act', fontsize=fontsize)
 
         # Plot the second matrix
         im2 = axesDown[i].imshow(eocs, cmap='viridis', interpolation='nearest',
                                  aspect=vsl_algo.env.state_dim/vsl_algo.env.action_dim)
-        axesDown[i].set_title(f'{al}')
-        axesDown[i].set_xlabel('State')
+        axesDown[i].set_title(f'{al}', fontsize=fontsize)
+        axesDown[i].set_xlabel('State', fontsize=fontsize)
         if use_action_visitations:
-            axesDown[i].set_ylabel('Act')
+            axesDown[i].set_ylabel('Act', fontsize=fontsize)
 
     subfigs[0].colorbar(
         im1, ax=axesUp, orientation='vertical', label='Visitation Freq.')
@@ -1416,8 +1424,6 @@ def generate_assignment_tables_v2(table_data: dict, Lmax_to_enames: dict, values
         Lslearned = [data_for_row[i]["L"] for i in range(len(data_for_row))]
         # Compute mode and frequency for Lslearned
         mode_val, mode_count = stats.mode(Lslearned)
-        mode_val = mode_val[0]
-        mode_count = mode_count[0]
         row["L"] = f"{mode_val}, ({mode_count/len(Lslearned)*100.0:.1f}%)"
         # Add the rest of values and their frequency
         unique_vals, counts = np.unique(Lslearned, return_counts=True)
@@ -1472,13 +1478,24 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
         
         for ename in enames_all:
             best_assignments_list, historic, agent, final_global_step, config =  PVSL.load_state(ename=ename, agent_name=vsl_algo.mobaselines_agent.name, ref_env=ref_env, ref_eval_env=ref_eval_env)
-            best,_ = best_assignments_list.get_best_assignment(lexicographic_vs_first=False)
-            assert best.is_equivalent_assignment(historic[-1], exhaustive=True)
-            
-            best_assignments_list: ClusterAssignmentMemory
-            best_assignments_list.update_maximum_conciseness(best)
 
-            maximum_conciseness_per_ename[ename] = best_assignments_list.maximum_conciseness_vs
+            if best_assignments_list is not None:
+                best,_ = best_assignments_list.get_best_assignment(lexicographic_vs_first=False)
+                assert best.is_equivalent_assignment(historic[-1], exhaustive=True)
+
+                best_assignments_list: ClusterAssignmentMemory
+                best_assignments_list.update_maximum_conciseness(best)
+
+                maximum_conciseness_per_ename[ename] = best_assignments_list.maximum_conciseness_vs
+            else:
+                best = historic[-1]
+                print(f"WARNING: No best assignments list found, there has been an error during training, at step {len(historic)} only the last assignment is used for {ename}")
+                maximum_conciseness_per_ename[ename] = float('-inf')
+                best_chr = 0.0
+                for h in historic:
+                    if min(h.coherence()) > best_chr:
+                        best_chr= min(h.coherence())
+                        maximum_conciseness_per_ename[ename] = max(h.conciseness_vs(), maximum_conciseness_per_ename[ename])
 
             match = re.search(r"_L(\d+)", ename)
             
@@ -1488,11 +1505,11 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
                 l_num = 0
 
             if l_num==0:
-                l_num = best_assignments_list.memory[0].Lmax
+                l_num = best.Lmax
             if algo_name != 'pbmorl':
-                print(list(best_assignments_list.memory[0].value_systems), )
-                assert l_num == best_assignments_list.memory[0].Lmax, f"Expected Lmax {l_num}, but got {best_assignments_list.memory[0].Lmax} for {ename}"
-            l_num = best_assignments_list.memory[0].Lmax # Use the real Lmax
+                print(list(best.value_systems), )
+                assert l_num == best.Lmax, f"Expected Lmax {l_num}, but got {best.Lmax} for {ename}"
+            l_num = best.Lmax # Use the real Lmax
             if l_num not in enames_per_l.keys():
                 enames_per_l[l_num] = []
             enames_per_l[l_num].append(ename)
@@ -1587,16 +1604,10 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
         
         
         for l_num, enames in enames_per_l.items():
-            
-            ename = enames[0]
-
-            
-            vsl_algo = vsl_algo_per_ename[ename]
-            best_gr_then_vs_assignment = best_per_ename[ename]
-            
-            
             if plot_returns:
                 for ename in enames:
+                    vsl_algo = vsl_algo_per_ename[ename]
+                    best_gr_then_vs_assignment = best_per_ename[ename]
                     if '_seed' in ename:
                         seed_ename = ename.split('_seed')[-1]
                         assert int(seed_ename) >= 0, f"Expected seed_ename to be a non-negative integer, but got {seed_ename} for {ename}"
@@ -1610,8 +1621,8 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
                         epsilon=sampling_epsilon, n_trajs_per_agent=sampling_trajs_per_agent)
                 
                         
-                    plot_return_pairs(trajs_per_agent, trajs_per_cluster, cluster_assignment=test_best_per_ename[ename], cluster_colors=vsl_algo.get_cluster_colors('matplotlib'), 
-                                    run_dir=run_dir, agent_data=test_dataset.agent_data, namefig=os.path.join("return_pairs_all_clusters", "seed" + seed_ename), show=show)
+                    plot_return_pairs(trajs_per_agent, trajs_per_cluster, values_names=values_names, cluster_assignment=test_best_per_ename[ename], cluster_colors=vsl_algo.get_cluster_colors('matplotlib'), 
+                                    run_dir=run_dir, agent_data=test_dataset.agent_data, namefig=os.path.join("return_pairs_all_clusters", "seed" + seed_ename), show=show, fontsize=fontsize)
 
                     vsl_algo_per_ename[ename].mobaselines_agent.set_envs(env=ref_eval_env, eval_env=ref_eval_env)
                     pareto_front_and_weights, unfiltered_front_and_weights = vsl_algo_per_ename[ename].mobaselines_agent.pareto_front(num_eval_weights_for_front=num_eval_weights_for_front,
@@ -1641,6 +1652,51 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
                                         cluster_colors=vsl_algo.get_cluster_colors('matplotlib'),fontsize=fontsize,
                                         save_path=os.path.join(plearned, "seed" + seed_ename), show=show)
 
+                    test_dataset: VSLPreferenceDataset = test_dataset
+                    target_agent_and_vs_to_learned_ones = {}
+                    target_agent_and_vs_to_learned_pareto = {}
+                    for ag, agdata in test_dataset.agent_data.items():
+                        cluster_id_ag = best_gr_then_vs_assignment.agent_to_vs_cluster_assignments[ag]
+                        weight_learned = transform_weights_to_tuple(best_gr_then_vs_assignment.get_value_system(cluster_id_ag))
+                        
+                        list_uf = [tuple(t) for t in unfiltered_front_and_weights[1].tolist()]
+                        
+                        pareto_learned = unfiltered_front_and_weights[0][list_uf.index(weight_learned)]
+                        target_agent_and_vs_to_learned_pareto[(ag, transform_weights_to_tuple(agdata['value_system']))] = pareto_learned
+                        target_agent_and_vs_to_learned_ones[(ag, transform_weights_to_tuple(agdata['value_system']))] = weight_learned
+                    target_al_aid, learned_al_aid = list(target_agent_and_vs_to_learned_ones.items())[0]
+                    unique_al = set([t[1] for t in target_agent_and_vs_to_learned_ones.keys()])
+
+                    # Save table in LaTeX format: original value systems to learned ones
+                    orig_vs = []
+                    learned_vs = []
+                    agent_ids = []
+                    paretos = []
+                    for (ag, orig), learned in target_agent_and_vs_to_learned_ones.items():
+                        agent_ids.append(ag)
+                        orig_vs.append(tuple([float(f"{v:.3f}") for v in orig]))
+                        learned_vs.append(tuple([float(f"{v:.3f}") for v in learned]))
+                        paretos.append(target_agent_and_vs_to_learned_pareto[(ag,orig)])
+                    print("PARETOS", paretos)
+                    paretos = np.asarray(paretos)
+                    print(np.array(paretos).shape)
+                    df_vs = pd.DataFrame({
+                        "Agent": agent_ids,
+                        "Original Value System": orig_vs,
+                        "Learned Value System": learned_vs,
+                        **{f"L. {values_names[i]}": paretos[:,i] for i in range(len(values_names))}
+                    })
+                    table_dir = os.path.join(run_dir, "tables", ename)
+                    os.makedirs(table_dir, exist_ok=True)
+                    latex_path = os.path.join(table_dir, f"original_vs_to_learned_vs_L{l_num}.tex")
+                    with open(latex_path, "w") as f:
+                        f.write(df_vs.to_latex(index=False, escape=False))
+                    print(f"Saved original vs to learned vs table to {latex_path}")
+                    targets_all = []
+                    for t,v in  target_agent_and_vs_to_learned_ones.items():
+                        if t[1] in unique_al and t[1] not in [tt[1] for tt in targets_all]:
+                            targets_all.append(t)
+                    print("TARGET", targets_all)
             
             # plot di scores:
             
@@ -1652,39 +1708,6 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
             
             
 
-            test_dataset: VSLPreferenceDataset = test_dataset
-            target_agent_and_vs_to_learned_ones = {}
-            for ag, agdata in test_dataset.agent_data.items():
-                cluster_id_ag = best_gr_then_vs_assignment.agent_to_vs_cluster_assignments[ag]
-                weight_learned = transform_weights_to_tuple(best_gr_then_vs_assignment.get_value_system(cluster_id_ag))
-                target_agent_and_vs_to_learned_ones[(ag, transform_weights_to_tuple(agdata['value_system']))] = weight_learned
-            target_al_aid, learned_al_aid = list(target_agent_and_vs_to_learned_ones.items())[0]
-            unique_al = set([t[1] for t in target_agent_and_vs_to_learned_ones.keys()])
-
-            # Save table in LaTeX format: original value systems to learned ones
-            orig_vs = []
-            learned_vs = []
-            agent_ids = []
-            for (ag, orig), learned in target_agent_and_vs_to_learned_ones.items():
-                agent_ids.append(ag)
-                orig_vs.append(tuple([float(f"{v:.3f}") for v in orig]))
-                learned_vs.append(tuple([float(f"{v:.3f}") for v in learned]))
-            df_vs = pd.DataFrame({
-                "Agent": agent_ids,
-                "Original Value System": orig_vs,
-                "Learned Value System": learned_vs
-            })
-            table_dir = os.path.join(run_dir, "tables")
-            os.makedirs(table_dir, exist_ok=True)
-            latex_path = os.path.join(table_dir, f"original_vs_to_learned_vs_L{l_num}.tex")
-            with open(latex_path, "w") as f:
-                f.write(df_vs.to_latex(index=False, escape=False))
-            print(f"Saved original vs to learned vs table to {latex_path}")
-            targets_all = []
-            for t,v in  target_agent_and_vs_to_learned_ones.items():
-                if t[1] in unique_al and t[1] not in [tt[1] for tt in targets_all]:
-                    targets_all.append(t)
-            print("TARGET", targets_all)
 
 
 
@@ -1692,9 +1715,6 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
             
             
         
-
-            num_digits = len(str(len(best_assignments_list.memory)))
-
 
             # 2: tables.
             # Put for the first, middle, and last assignment in separated tables.

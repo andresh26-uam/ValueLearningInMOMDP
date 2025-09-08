@@ -185,6 +185,10 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, title
         save_path: Path to save the plot (optional)
         show_weights: Whether to annotate points with weights
     """
+    if learned_front_data is not None:
+        np.save(os.path.join(save_path + '_learned_front.npy'), np.array(learned_front_data))
+    if known_front_data is not None:
+        np.save(os.path.join(save_path + '_known_front.npy'), np.array(known_front_data))
     if with_clusters is not None:
         assert cluster_colors is not None
         assert len(cluster_colors) == with_clusters.Lmax, "Cluster colors must match the number of clusters."
@@ -217,22 +221,29 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, title
                   label='Known Pareto Front', marker='s', edgecolors='darkred',zorder=1)
 
     # Plot learned Pareto front   
+    clusters_painted = list()
+    cluster_points = list()
+    cluster_colors_simple = list()
     if learned_front_data is not None:
         learned_points, learned_weights = learned_front_data
         learned_points = np.array(learned_points)
         learned_weights = np.array(learned_weights)
         if cluster_colors is not None:
-            for w in learned_weights:
+            for il, w in enumerate(learned_weights):
                 closest_weight, index_ = with_clusters.find_cluster_with_weights(w)
                 cluster_color = cluster_colors[index_] if cluster_colors is not None else 'blue'
                 cluster_color_array.append(cluster_color)
-            
+
+                if np.allclose(closest_weight , w):
+                    clusters_painted.append(closest_weight)
+                    cluster_points.append(learned_points[il])
+                    cluster_colors_simple.append(cluster_color)
+            cluster_points = np.array(cluster_points)
             assert len(cluster_color_array) == len(learned_points), "Cluster colors must match the number of learned points."
-            # Add legend for cluster colors
-            import matplotlib.patches as mpatches
-            cluster_legend_handles = []
-            for idx, color in enumerate(cluster_colors):
-                cluster_legend_handles.append(mpatches.Patch(color=color, label=f'Cluster {idx}'))
+            # Add legend for each cluster color
+            for idx, color in enumerate(cluster_colors_simple):
+                print("CI??", clusters_painted[idx])
+                ax.scatter([], [], c=color, label=f'Cl. {idx} - VS {tuple([f"{float(c):.3f}" for c in clusters_painted[idx]])}', marker='o', s=100)
         else:
             cluster_color_array = ['yellow'] * len(learned_points)
         if n_goals == 2:
@@ -241,30 +252,38 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, title
             ax.scatter(learned_points[:, 0], learned_points[:, 1], 
                                c=cluster_color_array, s=90, alpha=1.0, 
                                label='Learned Pareto Front', marker='o', edgecolors='darkblue', zorder=3000)
-        
+            if len(clusters_painted) > 0:
+                # Add legend for clusters
+                ax.scatter(cluster_points[:, 0], cluster_points[:, 1], c=cluster_colors_simple, alpha=0, edgecolors=cluster_colors_simple,s=200, label=None, marker='o', zorder=3000)
+               
         elif n_goals == 3:
             ax.scatter3D(learned_points[:, 0], learned_points[:, 1], learned_points[:, 2], 
                   c=cluster_color_array, alpha=0.8 ,
                   label='Learned Pareto Front', marker='o', edgecolors='darkblue', zorder=3000)
+            if len(clusters_painted) > 0:
+                # Add legend for clusters
+                ax.scatter3D(cluster_points[:, 0], cluster_points[:, 1], cluster_points[:, 2], c=cluster_colors_simple, alpha=0, edgecolors=cluster_colors_simple,s=200, label='Cluster policies in Pareto Front', marker='o', zorder=3001)
+
         # Annotate with weights if requested
         if show_weights and learned_weights is not None:
             for i, (point, weight) in enumerate(zip(learned_points, learned_weights)):
                 weight_str = "("+(', ').join([f"{weight[i]:.2f}" for i in range(n_goals)]) + ")"
                 if n_goals == 2:
                     ax.annotate(weight_str, (point[0], point[1]), 
-                               xytext=(0, 5), textcoords='offset points',
-                               fontsize=fontsize-2, alpha=0.8, color='blue')
+                               xytext=(-7, 8), textcoords='offset points',
+                               fontsize=fontsize-1, alpha=0.8, color='blue')
                 elif n_goals == 3:
                     ax.text(point[0], point[1], point[2], weight_str, fontsize=fontsize, alpha=0.8, color='blue')
 
     
             # Note: 3D plotting requires a different setup, this is a placeholder for 3D visualization.
     # Formatting
-    ax.set_xlabel(objective_names[0], fontsize=fontsize)
-    ax.set_ylabel(objective_names[1], fontsize=fontsize)
+    ax.set_xlabel(objective_names[0], fontsize=fontsize+1)
+    ax.set_ylabel(objective_names[1], fontsize=fontsize+1)
+    ax.tick_params(axis='both', labelsize=fontsize)  # Set fontsize for tick labels
     if n_goals == 3:
         ax.set_zlabel(objective_names[2], fontsize=fontsize)
-    ax.set_title(title, fontsize=fontsize+2, fontweight='bold')
+    ax.set_title(title, fontsize=fontsize+3, fontweight='bold')
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=fontsize-1)
 
@@ -320,14 +339,16 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, title
                     for point, weight in zip(learned_points, learned_weights):
                         weight_str = "("+(', ').join([f"{weight[j]:.2f}" for j in range(n_goals)]) + ")"
                         ax_proj.annotate(weight_str, (point[a], point[b]), 
-                                         xytext=(0, 5), textcoords='offset points',
-                                         fontsize=fontsize-2, alpha=0.8, color='blue')
+                                         xytext=(-7, 8), textcoords='offset points',
+                                         fontsize=fontsize-1, alpha=0.8, color='blue')
 
             ax_proj.set_xlabel(objective_names[a], fontsize=fontsize)
             ax_proj.set_ylabel(objective_names[b], fontsize=fontsize)
             ax_proj.set_title(f"{title} (Projection: {objective_names[a]} vs {objective_names[b]})", fontsize=fontsize+2)
             ax_proj.grid(True, alpha=0.3)
             ax_proj.legend(fontsize=fontsize-1)
+            ax.tick_params(axis='both', labelsize=fontsize)  # Set fontsize for tick labels
+    
             ax_proj.spines['top'].set_visible(False)
             ax_proj.spines['right'].set_visible(False)
             plt.tight_layout()
