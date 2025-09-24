@@ -307,12 +307,17 @@ if __name__ == "__main__":
         print("REAL PARETO FRONT:", train_kwargs_restarted.get(
             'known_pareto_front', None))
         visualize_pareto_front(title="Expert Pareto Front Comparison",
+        calculate_metrics=True,
+        ref_point=train_kwargs_restarted.get(
+                                   'ref_point', None),
                                learned_front_data=pareto_front_and_weights,
                                objective_names=environment_data['values_names'],
                                known_front_data=train_kwargs_restarted.get(
                                    'known_pareto_front', None),
                                save_path=os.path.join(run_dir, f'expert_pareto_front'), show=False, fontsize=parser_args.plot_fontsize)
         visualize_pareto_front(title="Expert Solutions",
+        ref_point=train_kwargs_restarted.get(
+                                   'ref_point', None),
                                objective_names=environment_data['values_names'],
                                learned_front_data=unfiltered_front_and_weights,
                                

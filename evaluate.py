@@ -357,6 +357,7 @@ def evaluate():
         'known_pareto_front', None),
         num_eval_weights_for_front=policy_train_kwargs.get(
             'num_eval_weights_for_front', 20),
+        ref_point=policy_train_kwargs.get('ref_point', None),
         num_eval_episodes_for_front=policy_train_kwargs.get(
             'num_eval_episodes_for_front', 20),
         fontsize=parser_args.plot_fontsize, sampling_trajs_per_agent=parser_args.sampling_trajs_per_agent, sampling_epsilon=parser_args.sampling_epsilon)

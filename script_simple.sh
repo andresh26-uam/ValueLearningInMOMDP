@@ -30,6 +30,10 @@ while [[ $# -gt 0 ]]; do
             O="-O"
             shift 
             ;;
+            -pdata)
+            prefix_data="$2"
+            shift 2
+            ;;
         -all)
             mode="all"
             shift
@@ -149,6 +153,7 @@ echo "SKIP CONFIRMATION": $skip_confirm
 echo "RESUME FROM": $resume_from
 echo "WANDB": $wandb
 echo "PREFIX=": $prefix
+echo "PREFIX DATA=": $prefix_data
 echo "DEBUGGING": $O
 if [[ "$env" != "ffmo" && "$env" != "mvc" && "$env" != "rw" && "$env" != "dst" && "$env" != "mine" ]]; then
     echo "Error: env must be one of: ffmo, mvc, rw, dst, mine"

@@ -62,7 +62,8 @@ class PVSL(object):
                                       batch_size_in_running_dataset_for_cluster_assignment=0,
                                       continue_with_best_cluster=False ,
                                       disable_selection_after_initial_reward_iterations=False,
-                                      use_running_dataset_in_assignment=False):
+                                      use_running_dataset_in_assignment=False,
+                                      use_transitions=False,):
                 assert batch_size_per_agent is not None
                 assert reward_vector_function == self.train_reward_net
                 condition_using_base = True
@@ -160,7 +161,7 @@ class PVSL(object):
                                 self.cluster_assignment(base_dataset, running_dataset=running_dataset_in_assignment, batch_size_in_running_dataset_for_cluster_assignment=batch_size_in_running_dataset_for_cluster_assignment, qualitative_cluster_assignment=False) # E-step
                             #self.current_assignment.certify_cluster_assignment_consistency()
                             train_losses = self.train_reward_models(train_set, global_step=self.global_step,
-                                                    n_optim_steps=steps_now, batch_size_per_agent=batch_size_per_agent, transitions=False) # M-step
+                                                    n_optim_steps=steps_now, batch_size_per_agent=batch_size_per_agent, transitions=use_transitions) # M-step
                             if self.static_weights:
                                 assert np.allclose(np.array(self.current_assignment.value_systems), self.mobaselines_agent.agent_mobaselines.sample_eval_weights(self.Lmax)), f"Static weights mismatch: {self.current_assignment.value_systems} vs {self.get_value_systems()}"
                             #self.current_assignment.certify_cluster_assignment_consistency()
@@ -448,7 +449,7 @@ class PVSL(object):
         algo='pvsl', env_name='ffmo', experiment_name='testing_algo', tags=[], 
         
          **kwargs):
-        
+        t = time.time()
         tags += algo
         tags += env_name
         tags += experiment_name
@@ -480,6 +481,9 @@ class PVSL(object):
         except Exception as e:
             wandb.finish(exit_code=e.__cause__, quiet=False)
             raise e
+        rt = time.time()
+        print(f"Training completed in {rt - t:.2f} seconds.")
+        #input("Press Enter to continue...")
         return ret
 
 
@@ -653,6 +657,7 @@ class PVSL(object):
                                                             initial_m_steps_per_cycle=initial_m_steps_per_cycle,
                                                             initial_exploration_rate=initial_exploration_rate,
                                                             use_running_dataset_in_assignment=False,
+                                                            use_transitions=True,
                                                             mutation_prob=mutation_prob, mutation_scale=mutation_scale,
                                                             batch_size_per_agent=batch_size_per_agent, global_iter=global_iter,
                                                             best_assignments_list=best_assignments_list)
@@ -921,7 +926,7 @@ class PVSL(object):
                     assert probs.shape == gt_probs.shape, f"Shape mismatch: {probs.shape} vs {gt_probs.shape}"
 
                     qualitative_mode = False
-                    aid_likelihood_per_vs_cluster[c] = likelihood_x_is_target(probs.detach(), util.safe_to_tensor(gt_probs).detach(), mode='th', slope=0.3, adaptive_slope=False, qualitative_mode=qualitative_mode, indifference_tolerance=self.loss.model_indifference_tolerance)
+                    aid_likelihood_per_vs_cluster[c] = likelihood_x_is_target(probs.detach(), util.safe_to_tensor(gt_probs).detach(), mode='th', slope=0.1, adaptive_slope=False, qualitative_mode=qualitative_mode, indifference_tolerance=self.loss.model_indifference_tolerance)
 
                     #aid_likelihood_per_vs_cluster[c] = likelihood_x_is_target(probs.detach(), util.safe_to_tensor(gt_probs).detach(), mode='th', slope=0.3, adaptive_slope=False, qualitative_mode=True, indifference_tolerance=self.loss.model_indifference_tolerance)
                 
@@ -959,7 +964,7 @@ class PVSL(object):
                             continue
                         print("WAS HERE_")
                         vsc2 = self.value_system_per_cluster[cl2].get_alignment_layer()[0].detach().numpy()
-                        if np.max(abs(vsc - vsc2)) <= 0.01:
+                        if np.max(abs(vsc - vsc2)) <= 0.05:
                             changed = True
                             if len(ags) >= len(ags2): # we choose the most popular weights
                                 print("WAS HERE")

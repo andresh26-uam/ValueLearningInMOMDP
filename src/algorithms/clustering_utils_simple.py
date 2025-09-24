@@ -238,7 +238,7 @@ class ClusterAssignment(object):
                 if len(self.assignments_vs[cluster_idx]) == 0:
                     continue
             diffs.append(np.abs(weights - w).sum())
-        index_ = np.where(np.array(diffs) == max(diffs))[0][0] if len(diffs) > 0 else None
+        index_ = np.where(np.array(diffs) == min(diffs))[0][0] if len(diffs) > 0 else None
         return (self.value_systems[index_] if index_ is not None else None), index_
 
     def _default_aggr_on_gr_scores(x):

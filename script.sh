@@ -234,8 +234,24 @@ if [[ "$mode" == "all" || "$mode" == "train" || "$mode" == "traineval" ]]; then
     echo "Training completed."
 fi
 
+NTRAJS=200
+if [[ "$env" == "ffmo" ]]; then
+    NTRAJS=200
+elif [[ "$env" == "mvc" ]]; then
+    NTRAJS=1000
+elif [[ "$env" == "rw" ]]; then
+    NTRAJS=100
+elif [[ "$env" == "dst" ]]; then
+    NTRAJS=100
+elif [[ "$env" == "mine" ]]; then
+    NTRAJS=100
+else
+    echo "Error: env must be one of: ffmo, mvc, dst, mine"
+    exit 1
+fi
+
 if [[ "$mode" == "all" || "$mode" == "eval" || "$mode" == "traineval" ]]; then
     seeds_str=$(IFS=,; echo "${seeds_list[*]}")
     Lstr=$(IFS=,; echo "${L[*]}")
-    python $O evaluate.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol} -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -sname $sname -e $env -strajs 200 -seps 0.05 -a $algo -seeds $seeds_str -Ltries $Lstr -cf algorithm_config_${algo}.json
+    python $O evaluate.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol} -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -sname $sname -e $env -strajs $NTRAJS -seps 0.05 -a $algo -seeds $seeds_str -Ltries $Lstr -cf algorithm_config_${algo}.json
 fi

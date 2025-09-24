@@ -220,7 +220,24 @@ def parse_policy_approximator(ref_class, env_name: str, society_data: Dict, envi
         if "known_pareto_front" in ref_policy_kwargs['train_kwargs'] and ref_policy_kwargs['train_kwargs']['known_pareto_front'] is not None:
             ref_policy_kwargs['train_kwargs']['known_pareto_front'] = eval(
                 ref_policy_kwargs['train_kwargs']['known_pareto_front'])
-
+        elif parser_args.environment == 'mvc':
+            #MANEL: 
+            ref_policy_kwargs['train_kwargs']['known_pareto_front'] = np.array([[  4.8412,   0.    ,   0.    ],
+                    [  5.2608,  -0.0728,  -0.0728],
+                    [  5.2511,  -0.064 ,  -0.064 ],
+                    [  7.0915,   0.    ,  -7.6599],
+                    [  6.5929,  -0.4065,  -0.6339],
+                    [  6.8871,  -0.6453,  -0.6732],
+                    [  7.1659,  -0.8092,  -0.846 ],
+                    [  8.3184, -16.9284,   0.    ],
+                    [  8.413 ,  -0.9703,  -4.3516],
+                    [  7.741 ,  -0.817 ,  -1.5626],
+                    [  7.3295,  -0.8228,  -0.9744],
+                    [  8.3812, -16.9581,   0.    ],
+                    [  9.5079,  -1.9701,  -4.9198],
+                    [  9.2773,  -1.9701,  -3.7342],
+                    [  9.0842, -13.3525,  -1.3151]])
+        
         if env_name in ENVS_WITH_KNOWN_PARETO_FRONT:
             ref_policy_kwargs['train_kwargs']['known_pareto_front'] = train_environment.unwrapped.pareto_front(
                 gamma=alg_config['discount_factor'])

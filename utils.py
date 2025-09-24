@@ -8,9 +8,11 @@ from baraacuda.utils.miscellaneous import pickle_obj
 from baraacuda.utils.stats import get_stats
 from baraacuda.utils.wrappers import start_recording, stop_recording
 from mushroom_rl.core import Core
+from defines import transform_weights_to_tuple
 from src.algorithms.clustering_utils_simple import ClusterAssignment
 from src.dataset_processing.data import TrajectoryWithValueSystemRews
 from src.policies.mushroom_agent_mobaselines import MOBaselinesAgent
+import json
 
 
 def select_output_shape(regressor_type, n_actions, n_objectives):
@@ -170,8 +172,16 @@ def train(core: Core,
     train_time += time.time() - checkpoint_time
     return train_time
 
-def visualize_pareto_front(learned_front_data=None, known_front_data=None, title="Pareto Front Visualization",
-                          save_path=None, show_weights=True, objective_names=None, show=False, with_clusters: ClusterAssignment =None, cluster_colors=None, fontsize=12):
+from morl_baselines.common.performance_indicators import (
+    cardinality,
+    expected_utility,
+    hypervolume,
+    igd,
+    maximum_utility_loss,
+)
+
+def visualize_pareto_front(learned_front_data=None, known_front_data=None, weights_in_pareto_front={}, title="Pareto Front Visualization",
+                          save_path=None, show_weights=True, objective_names=None, show=False, with_clusters: ClusterAssignment =None, cluster_colors=None, fontsize=12, calculate_metrics=False, ref_point=None, clusters_not_in_pf=None):
     """
     Visualize the Pareto front with learned and known fronts.
     
@@ -185,6 +195,8 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, title
         save_path: Path to save the plot (optional)
         show_weights: Whether to annotate points with weights
     """
+    metrics = None
+    metrics_cl = None
     if learned_front_data is not None:
         np.save(os.path.join(save_path + '_learned_front.npy'), np.array(learned_front_data))
     if known_front_data is not None:
@@ -193,7 +205,27 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, title
         assert cluster_colors is not None
         assert len(cluster_colors) == with_clusters.Lmax, "Cluster colors must match the number of clusters."
         
+    if calculate_metrics:
+        assert learned_front_data is not None, "Learned front data must be provided for metric calculation."
 
+        assert ref_point is not None, "Reference point must be provided for hypervolume calculation."
+        if known_front_data is not None:
+            igd_metric = igd(known_front=known_front_data, current_estimate=learned_front_data[0])
+        hypervolume_metric = hypervolume(ref_point=ref_point, points=learned_front_data[0])
+        cardinality_metric = cardinality(front=learned_front_data[0])
+        expected_utility_metric = expected_utility(front=learned_front_data[0], weights_set={tuple(w) for w in learned_front_data[1]})
+        maximum_utility_loss_metric = maximum_utility_loss(reference_set=known_front_data, front=learned_front_data[0], weights_set={tuple(w) for w in learned_front_data[1]})
+        metrics = {
+            "Hypervolume": hypervolume_metric,
+            "Cardinality": cardinality_metric,
+            "Expected Utility": expected_utility_metric,
+            "Maximum Utility Loss": maximum_utility_loss_metric,
+            "IGD": igd_metric if known_front_data is not None else 0.0
+        }
+        if save_path is not None:
+            metrics_save_path = save_path + '_metrics.json'
+            with open(metrics_save_path, 'w') as f:
+                json.dump(metrics, f, indent=4)
     n_goals = learned_front_data[0].shape[-1]
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d' if n_goals == 3 else None)
@@ -201,7 +233,7 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, title
     assert n_goals <= 3, "Number of objectives must be 2 or 3 for visualization."
     # Default objective names
     if objective_names is None:
-        objective_names = [f'Objective {i}' for i in range(1, n_goals + 1)]
+        objective_names = [f'Value {i}' for i in range(1, n_goals + 1)]
     assert len(objective_names) == n_goals, "At least two objectives are required for Pareto front visualization."
     cluster_color_array = []
     # Plot known Pareto front
@@ -213,52 +245,101 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, title
         # Plot points
         if n_goals == 2:
             ax.scatter(known_points[:, 0], known_points[:, 1], 
-                  c='black', s=120, alpha=1.0, 
+                  c='black', s=160, alpha=1.0, 
                   label='Known Pareto Front', marker='s', edgecolors='darkred',zorder=1)
         elif n_goals == 3:
             ax.scatter3D(known_points[:, 0], known_points[:, 1], known_points[:, 2], 
-                  c='black', alpha=1.0, 
+                  c='black',  alpha=1.0, 
                   label='Known Pareto Front', marker='s', edgecolors='darkred',zorder=1)
 
     # Plot learned Pareto front   
     clusters_painted = list()
     cluster_points = list()
     cluster_colors_simple = list()
+    if clusters_not_in_pf is not None:
+        learned_front_data = list(learned_front_data)
+        learned_front_data[0] = np.vstack([learned_front_data[0], clusters_not_in_pf[0]])
+        learned_front_data[1] = np.vstack([learned_front_data[1], clusters_not_in_pf[1]])
+        learned_front_data = tuple(learned_front_data)
     if learned_front_data is not None:
         learned_points, learned_weights = learned_front_data
         learned_points = np.array(learned_points)
         learned_weights = np.array(learned_weights)
         if cluster_colors is not None:
             for il, w in enumerate(learned_weights):
-                closest_weight, index_ = with_clusters.find_cluster_with_weights(w)
-                cluster_color = cluster_colors[index_] if cluster_colors is not None else 'blue'
-                cluster_color_array.append(cluster_color)
-
-                if np.allclose(closest_weight , w):
-                    clusters_painted.append(closest_weight)
+                
+                closest_weight = None
+                index_ = 0
+                target_val2 = weights_in_pareto_front.get(transform_weights_to_tuple(w), None)
+                closest_weights = []
+                for icl, clw in enumerate(with_clusters.value_systems):
+                    if clw not in with_clusters.value_systems_active:
+                        continue           
+                    target_val = weights_in_pareto_front.get(transform_weights_to_tuple(clw), None)
+                    
+                    if target_val is not None and target_val2 is not None and np.allclose(target_val, target_val2):
+                        closest_weight = transform_weights_to_tuple(clw)
+                        index_ = icl
+                        closest_weights.append((closest_weight, icl))
+                    
+                if closest_weight is None and clusters_not_in_pf is not None and transform_weights_to_tuple(transform_weights_to_tuple(w)
+                    ) in {tuple(t__) for t__ in clusters_not_in_pf[1].tolist()}:
+                        closest_weight = transform_weights_to_tuple(w)
+                        _, index_ = with_clusters.find_cluster_with_weights(w)
+                        closest_weights.append((closest_weight, index_))
+                if closest_weight is not None:
+                    cluster_color = cluster_colors[index_] if cluster_colors is not None else (0,0,1)
+                    
+                    clusters_painted.append(closest_weights)
                     cluster_points.append(learned_points[il])
                     cluster_colors_simple.append(cluster_color)
+                else:
+                    cluster_color = (0.5,0.5,0.5)  # Gray for unassigned
+                    # TODO: put weights of ALL clusters with points in the front.
+                cluster_color_array.append(cluster_color)
             cluster_points = np.array(cluster_points)
             assert len(cluster_color_array) == len(learned_points), "Cluster colors must match the number of learned points."
             # Add legend for each cluster color
             for idx, color in enumerate(cluster_colors_simple):
-                print("CI??", clusters_painted[idx])
-                ax.scatter([], [], c=color, label=f'Cl. {idx} - VS {tuple([f"{float(c):.3f}" for c in clusters_painted[idx]])}', marker='o', s=100)
+                ax.scatter([cluster_points[idx, 0]], [cluster_points[idx, 1]], c=[color], label="\n".join([f'Cl. {cp[1]} - VS {tuple([f"{float(c):.3f}" for c in cp[0]])}' for cp in clusters_painted[idx] ]), marker='o', s=200)
+            if calculate_metrics:
+                assert learned_front_data is not None, "Learned clustered front data must be provided for metric calculation."
+
+                assert ref_point is not None, "Reference point must be provided for hypervolume calculation."
+                if known_front_data is not None:
+                    igd_metric = igd(known_front=known_front_data, current_estimate=cluster_points)
+                hypervolume_metric = hypervolume(ref_point=ref_point, points=cluster_points)
+                cardinality_metric = cardinality(front=cluster_points)
+                expected_utility_metric = expected_utility(front=cluster_points, weights_set={tuple(w) for w in learned_front_data[1]})
+                maximum_utility_loss_metric = maximum_utility_loss(reference_set=known_front_data, front=cluster_points, weights_set={tuple(w) for w in learned_front_data[1]})
+                metrics_cl = {
+                    "Hypervolume": hypervolume_metric,
+                    "Cardinality": cardinality_metric,
+                    "Expected Utility": expected_utility_metric,
+                    "Maximum Utility Loss": maximum_utility_loss_metric,
+                    "IGD": igd_metric if known_front_data is not None else 0.0
+                }
+                if save_path is not None:
+                    metrics_save_path = save_path + '_clusters_metrics.json'
+                    with open(metrics_save_path, 'w') as f:
+                        json.dump(metrics_cl, f, indent=4)
         else:
             cluster_color_array = ['yellow'] * len(learned_points)
         if n_goals == 2:
             # Plot learned points over known points by plotting after known front
             print(cluster_color_array)
             ax.scatter(learned_points[:, 0], learned_points[:, 1], 
-                               c=cluster_color_array, s=90, alpha=1.0, 
+                               c='white', s=90, alpha=1.0, 
                                label='Learned Pareto Front', marker='o', edgecolors='darkblue', zorder=3000)
             if len(clusters_painted) > 0:
                 # Add legend for clusters
                 ax.scatter(cluster_points[:, 0], cluster_points[:, 1], c=cluster_colors_simple, alpha=0, edgecolors=cluster_colors_simple,s=200, label=None, marker='o', zorder=3000)
                
         elif n_goals == 3:
+            assert len(cluster_color_array) == len(learned_points), "Cluster colors must match the number of learned points."
+           
             ax.scatter3D(learned_points[:, 0], learned_points[:, 1], learned_points[:, 2], 
-                  c=cluster_color_array, alpha=0.8 ,
+                  c='white', alpha=0.8 ,
                   label='Learned Pareto Front', marker='o', edgecolors='darkblue', zorder=3000)
             if len(clusters_painted) > 0:
                 # Add legend for clusters
@@ -273,7 +354,7 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, title
                                xytext=(-7, 8), textcoords='offset points',
                                fontsize=fontsize-1, alpha=0.8, color='blue')
                 elif n_goals == 3:
-                    ax.text(point[0], point[1], point[2], weight_str, fontsize=fontsize, alpha=0.8, color='blue')
+                    ax.text(point[0], point[1], point[2], weight_str, fontsize=fontsize-3, alpha=0.8, color='blue')
 
     
             # Note: 3D plotting requires a different setup, this is a placeholder for 3D visualization.
@@ -333,14 +414,14 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, title
                 norm_values = (values - values.min()) / (values.max() - values.min() + 1e-8)
                 sizes = min_size + norm_values * (max_size - min_size)
                 ax_proj.scatter(learned_points[:, a], learned_points[:, b],
-                                c=cluster_color_array, s=sizes, alpha=0.8,
+                                c='white', s=sizes, alpha=0.8,
                                 label='Learned Pareto Front', marker='o', edgecolors='darkblue', zorder=3000)
                 if show_weights and learned_weights is not None:
                     for point, weight in zip(learned_points, learned_weights):
                         weight_str = "("+(', ').join([f"{weight[j]:.2f}" for j in range(n_goals)]) + ")"
                         ax_proj.annotate(weight_str, (point[a], point[b]), 
                                          xytext=(-7, 8), textcoords='offset points',
-                                         fontsize=fontsize-1, alpha=0.8, color='blue')
+                                         fontsize=fontsize-4, alpha=0.8, color='blue')
 
             ax_proj.set_xlabel(objective_names[a], fontsize=fontsize)
             ax_proj.set_ylabel(objective_names[b], fontsize=fontsize)
@@ -360,9 +441,10 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, title
                 plt.show()
             plt.close(fig_proj)
 
-    
-    
-    return fig, ax
+    if metrics_cl is not None:
+        return metrics, metrics_cl
+    else:
+        return metrics
 def evaluate(core: Core,
              mdp,
              policy,
