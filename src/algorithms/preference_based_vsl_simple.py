@@ -308,7 +308,8 @@ class PVSL(object):
         instance.global_step = global_step
 
         # type: ignore
-        instance.current_assignment: ClusterAssignment = historic[-1]
+        instance.current_assignment = historic[-1]
+        assert isinstance(instance.current_assignment, ClusterAssignment)
         instance.Lmax = instance.current_assignment.Lmax
         instance.update_training_networks_from_assignment(
             instance.value_system_per_cluster, instance.train_reward_net, instance.current_assignment, only_grounding=False)

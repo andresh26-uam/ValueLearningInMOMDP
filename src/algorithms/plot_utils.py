@@ -49,55 +49,15 @@ def pad(array, length):
     return new_arr
 
 
-"""
-def plot_learning_curves(algo: PVSL, historic_metric, name_metric='Linf', name_method='test_lc', align_func_colors=lambda al: 'black', ylim=(0.0,1.1), show=False, usecmap='viridis'):
-    plt.figure(figsize=(6, 6))
-    plt.title(
-        f"Learning curve for {name_metric}\nover {len(historic_metric)} repetitions.")
-    plt.xlabel("Training Iteration")
-    plt.ylabel(f"{name_metric}")
-    n_possible_al = len(historic_metric[0].keys())
-    viridis = cm.get_cmap(usecmap, n_possible_al)  # Get 'viridis' colormap with number of AL strategies
-    
-
-    for idx, al in enumerate(historic_metric[0].keys()):
-        if al not in historic_metric[0].keys() or len(historic_metric[0][al]) == 0 :
-            continue
-        if usecmap is None or (np.sum(al) == 1.0 and 1.0 in al):
-            color = align_func_colors(al)
-        else:
-            color = viridis(idx / (n_possible_al - 1))
-
-        max_length = np.max([len(historic_metric[rep][al])
-                            for rep in range(len(historic_metric))])
-
-        vals = np.asarray([pad(historic_metric[rep][al], max_length)
-                          for rep in range(len(historic_metric))])
-        avg_vals = np.mean(vals, axis=0)
-        std_vals = np.std(vals, axis=0)
-
-        #color = align_func_colors(al)
-        plt.plot(avg_vals,
-                 color=color,
-                 label=f'{tuple([float("{0:.3f}".format(t)) for t in al])} Last: {float(avg_vals[-1]):0.2f}'
-                 )
-        # plt.plot(avg_grad_norms,color=align_func_colors.get(tuple(al), 'black'), label=f'Grad Norm: {float(avg_grad_norms[-1]):0.2f}'
-
-        plt.fill_between([i for i in range(len(avg_vals))], avg_vals-std_vals,
-                         avg_vals+std_vals, edgecolor=color, alpha=0.3, facecolor=color)
-        # plt.fill_between([i for i in range(len(avg_grad_norms))], avg_grad_norms-std_grad_norms, avg_grad_norms+std_grad_norms,edgecolor='black',alpha=0.1, facecolor='black')
-        
-    if ylim is not None:
-        plt.ylim(ylim)
-    plt.legend()
-    plt.grid()
-    plt.savefig(f'plots/Learning_curves_{name_method}.pdf')
-    if show:
-        plt.show()
-    plt.close()"""
-
-
-def plot_learned_to_expert_policies(expert_policy, vsl_algo: PVSL, vsi_or_vgl='vsi', target_align_funcs_to_learned_align_funcs=None, namefig='mce_vsl_test', show=False, learnt_policy=None, targets=None):
+def plot_learned_to_expert_policies(expert_policy, 
+                                    vsl_algo: PVSL, 
+                                    vsi_or_vgl='vsi', 
+                                    target_align_funcs_to_learned_align_funcs=None, 
+                                    namefig='mce_vsl_test', 
+                                    show=False, 
+                                    learnt_policy=None, 
+                                    targets=None, 
+                                    fontsize=15):
     targets = targets if targets is not None else (vsl_algo.vsi_target_align_funcs if vsi_or_vgl in ['vsi', 'sim'] else vsl_algo.vgl_target_align_funcs if vsi_or_vgl == 'vgl' else itertools.chain(
         vsl_algo.vsi_target_align_funcs, vsl_algo.vgl_target_align_funcs))
     learnt_policy = learnt_policy if learnt_policy is not None else vsl_algo.learned_policy_per_va
@@ -733,7 +693,7 @@ def plot_learned_and_expert_reward_pairs(vsl_algo: PVSL, learned_rewards_per_al_
     plt.close()
 
 
-def plot_learned_and_expert_rewards(vsl_algo, learned_rewards_per_al_func, cmap='viridis',  vsi_or_vgl='vsi', target_align_funcs_to_learned_align_funcs=None, namefig='mce_vsl_test', show=False, targets=None):
+def plot_learned_and_expert_rewards(vsl_algo, learned_rewards_per_al_func, cmap='viridis',  vsi_or_vgl='vsi', target_align_funcs_to_learned_align_funcs=None, namefig='mce_vsl_test', show=False, targets=None, fontsize=15):
     targets = targets if targets is not None else (vsl_algo.vsi_target_align_funcs if vsi_or_vgl == 'vsi' else vsl_algo.vgl_target_align_funcs if vsi_or_vgl == 'vgl' else itertools.chain(
         vsl_algo.vsi_target_align_funcs, vsl_algo.vgl_target_align_funcs))
 
@@ -799,7 +759,7 @@ def plot_learned_and_expert_rewards(vsl_algo, learned_rewards_per_al_func, cmap=
 
 def plot_learned_and_expert_occupancy_measures(vsl_algo: PVSL,
                                                learned_rewards_per_al_func,  vsi_or_vgl='vsi', target_align_funcs_to_learned_align_funcs=None,
-                                               namefig='mce_vsl_test', show=False, targets=None, assumed_expert_pi: VAlignedDictSpaceActionPolicy = None):
+                                               namefig='mce_vsl_test', show=False, targets=None, assumed_expert_pi: VAlignedDictSpaceActionPolicy = None, fontsize=15):
     targets = targets if targets is not None else (vsl_algo.vsi_target_align_funcs if vsi_or_vgl == 'vsi' else vsl_algo.vgl_target_align_funcs if vsi_or_vgl == 'vgl' else itertools.chain(
         vsl_algo.vsi_target_align_funcs, vsl_algo.vgl_target_align_funcs))
 

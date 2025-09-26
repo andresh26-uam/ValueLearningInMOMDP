@@ -1029,7 +1029,7 @@ class VAlignedDictSpaceActionPolicy(VAlignedDiscreteDictPolicy):
 
 class ValueSystemLearningPolicyCustomLearner(VAlignedDiscreteDictPolicy):
 
-    def __init__(self, *args, policy_per_va_dict, env, learner_method: Callable[[...], Any], saved_methods_per_va_dict=None, expose_state=True, assume_env_produce_state=False, stochastic_eval=False, **kwargs):
+    def __init__(self, *args, policy_per_va_dict, env, learner_method: Callable[[Any], Any], saved_methods_per_va_dict=None, expose_state=True, assume_env_produce_state=False, stochastic_eval=False, **kwargs):
         super().__init__(*args, policy_per_va_dict=policy_per_va_dict, env=env,  expose_state=expose_state,
                          assume_env_produce_state=assume_env_produce_state, stochastic_eval=stochastic_eval, **kwargs)
         self.learner_method = learner_method

@@ -471,7 +471,7 @@ class PreferenceModelClusteredVSL(preference_comparisons.PreferenceModel):
             reward_mode = self.algorithm.training_mode
         if custom_model is not None:
             prev_model = self.model
-            self.model: AbstractVSLRewardFunction = custom_model
+            self.model: RewardVectorModule = custom_model
 
         state = None
         action = None
