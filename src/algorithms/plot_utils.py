@@ -1,9 +1,6 @@
-from collections import OrderedDict
-from copy import deepcopy
+from scipy import stats
 import csv
 from functools import partial
-import math
-import pprint
 from typing import Dict, List
 import gymnasium
 import matplotlib.pyplot as plt
@@ -15,14 +12,13 @@ import torch
 from defines import transform_weights_to_tuple
 from src.algorithms.clustering_utils_simple import ClusterAssignment, ClusterAssignmentMemory
 from src.algorithms.preference_based_vsl_simple import PVSL
-from src.algorithms.utils import  mce_partition_fh, mce_occupancy_measures
+from src.algorithms.utils import mce_occupancy_measures
 from src.dataset_processing.data import TrajectoryWithValueSystemRews, VSLPreferenceDataset
-from src.dataset_processing.utils import calculate_expert_policy_save_path
-from src.policies.mushroom_agent_mobaselines import MOBaselinesAgent, ProxyPolicy, obtain_trajectories_and_eval_mo
+
+from src.policies.mushroom_agent_mobaselines import MOBaselinesAgent, obtain_trajectories_and_eval_mo
 from src.policies.vsl_policies import VAlignedDictSpaceActionPolicy
 import os
 from imitation.data import rollout
-from collections import defaultdict
 import re
 
 import matplotlib.pyplot as plt
@@ -35,14 +31,14 @@ def get_color_gradient(c1, c2, mix):
     """
     c1_rgb = np.array(c1)
     c2_rgb = np.array(c2)
-    mix = torch.softmax(torch.tensor(np.array(mix)),dim=0).detach().numpy()
+    mix = torch.softmax(torch.tensor(np.array(mix)), dim=0).detach().numpy()
     return (mix[0]*c1_rgb + ((1-mix[0])*c2_rgb))
 
 
 def get_linear_combination_of_colors(keys, color_from_keys, mix_weights):
 
-    return np.average(np.array([color_from_keys[key] for key in keys]), 
-                      weights=torch.softmax(torch.tensor(np.array(mix_weights)),dim=0).detach().numpy(), axis=0)
+    return np.average(np.array([color_from_keys[key] for key in keys]),
+                      weights=torch.softmax(torch.tensor(np.array(mix_weights)), dim=0).detach().numpy(), axis=0)
 
 
 def pad(array, length):
@@ -51,6 +47,7 @@ def pad(array, length):
     if len(new_arr) > len(array):
         new_arr[len(array):] = array[-1]
     return new_arr
+
 
 """
 def plot_learning_curves(algo: PVSL, historic_metric, name_metric='Linf', name_method='test_lc', align_func_colors=lambda al: 'black', ylim=(0.0,1.1), show=False, usecmap='viridis'):
@@ -101,7 +98,7 @@ def plot_learning_curves(algo: PVSL, historic_metric, name_metric='Linf', name_m
 
 
 def plot_learned_to_expert_policies(expert_policy, vsl_algo: PVSL, vsi_or_vgl='vsi', target_align_funcs_to_learned_align_funcs=None, namefig='mce_vsl_test', show=False, learnt_policy=None, targets=None):
-    targets = targets if targets is not None else (vsl_algo.vsi_target_align_funcs if vsi_or_vgl in ['vsi','sim'] else vsl_algo.vgl_target_align_funcs if vsi_or_vgl == 'vgl' else itertools.chain(
+    targets = targets if targets is not None else (vsl_algo.vsi_target_align_funcs if vsi_or_vgl in ['vsi', 'sim'] else vsl_algo.vgl_target_align_funcs if vsi_or_vgl == 'vgl' else itertools.chain(
         vsl_algo.vsi_target_align_funcs, vsl_algo.vgl_target_align_funcs))
     learnt_policy = learnt_policy if learnt_policy is not None else vsl_algo.learned_policy_per_va
 
@@ -138,14 +135,16 @@ def plot_learned_to_expert_policies(expert_policy, vsl_algo: PVSL, vsi_or_vgl='v
         else:
             learned_al = al if vsi_or_vgl == 'vgl' else target_align_funcs_to_learned_align_funcs[
                 al]
-            
-            lpol = learnt_policy.policy_per_va(learned_al if isinstance(learned_al[0],str) else learned_al)
+
+            lpol = learnt_policy.policy_per_va(
+                learned_al if isinstance(learned_al[0], str) else learned_al)
         if len(lpol.shape) == 3:
             lpol = lpol[0, :, :]
 
         im1 = axesUp[i].imshow(lpol, cmap='viridis', vmin=0, vmax=1,
                                interpolation='nearest', aspect=lpol.shape[1]/lpol.shape[0])
-        learned_al = learned_al[1] if isinstance(learned_al[0],str) else learned_al
+        learned_al = learned_al[1] if isinstance(
+            learned_al[0], str) else learned_al
 
         axesUp[i].set_title(
             f'{tuple([float("{0:.3f}".format(v)) for v in learned_al])}\nSTD: {tuple([float("{0:.3f}".format(v)) for v in std_learned_al])}')
@@ -153,7 +152,6 @@ def plot_learned_to_expert_policies(expert_policy, vsl_algo: PVSL, vsi_or_vgl='v
         axesUp[i].set_ylabel(
             f'State\nSTD: {float("{0:.4f}".format(std_lpol)) if isinstance(learnt_policy, list) else 0.0}', fontsize=fontsize)
 
-        
         # Plot the second matrix
         pol = expert_policy.policy_per_va(al)
         if len(pol.shape) == 3:
@@ -213,71 +211,77 @@ def filter_values(data1, data2, min_value=-10):
     return combined_mask
 
 
-
 def generate_expert_and_learned_trajs(vsl_algo: PVSL, assignment_test: ClusterAssignment, expert_policy: MOBaselinesAgent, eval_env: gymnasium.Env, agent_data: Dict, epsilon=0.05, n_trajs_per_agent=100, seed=0):
     # Select target alignment functions based on vsi_or_vgl
 
-    
     assignment_test.grounding.set_mode('test')
     print("Generating trajectories")
     generated_experttrajs_per_agent = {}
-    generated_learnedtrajs_per_cluster = [None for _ in range(len(assignment_test.assignments_vs))]
+    generated_learnedtrajs_per_cluster = [
+        None for _ in range(len(assignment_test.assignments_vs))]
     for cluster_id, agents in enumerate(assignment_test.assignments_vs):
-        if len(agents) > 0:  
-            print("For cluster", cluster_id, f"{len(agents)} agents assigned: {agents}")
-            cluster_weights = transform_weights_to_tuple(assignment_test.get_value_system(cluster_id))
-            
+        if len(agents) > 0:
+            print("For cluster", cluster_id,
+                  f"{len(agents)} agents assigned: {agents}")
+            cluster_weights = transform_weights_to_tuple(
+                assignment_test.get_value_system(cluster_id))
+
             trajs_learned, (scalarized_return,
-                                scalarized_discounted_return,
-                                vec_return,
-                                disc_vec_return, scalarized_return_real,
-                                scalarized_discounted_return_real,
-                                vec_return_real,
-                                disc_vec_return_real) = obtain_trajectories_and_eval_mo(
-                                    n_seeds=n_trajs_per_agent, agent=vsl_algo.mobaselines_agent, 
-                                    env=eval_env, 
-                                    exploration=epsilon,
-                                    reward_vector=assignment_test.grounding,
-                                    ws=[cluster_weights], 
-                                    ws_eval=[cluster_weights], seed=seed)
-            print("LEARNED TRAJS: ", "REAL RETURN", vec_return_real, "DISCOUNTED REAL RETURN", disc_vec_return_real)
-            print("LEARNED TRAJS: ", "LEARNED RETURN", vec_return, "DISCOUNTED LEARNED RETURN", disc_vec_return)
+                            scalarized_discounted_return,
+                            vec_return,
+                            disc_vec_return, scalarized_return_real,
+                            scalarized_discounted_return_real,
+                            vec_return_real,
+                            disc_vec_return_real) = obtain_trajectories_and_eval_mo(
+                n_seeds=n_trajs_per_agent, agent=vsl_algo.mobaselines_agent,
+                env=eval_env,
+                exploration=epsilon,
+                reward_vector=assignment_test.grounding,
+                ws=[cluster_weights],
+                ws_eval=[cluster_weights], seed=seed)
+            print("LEARNED TRAJS: ", "REAL RETURN", vec_return_real,
+                  "DISCOUNTED REAL RETURN", disc_vec_return_real)
+            print("LEARNED TRAJS: ", "LEARNED RETURN", vec_return,
+                  "DISCOUNTED LEARNED RETURN", disc_vec_return)
             for agent_id in agents:
-                agent_weights = transform_weights_to_tuple(agent_data[agent_id]['value_system'])
+                agent_weights = transform_weights_to_tuple(
+                    agent_data[agent_id]['value_system'])
 
                 if expert_policy.is_single_objective:
-                    assert expert_policy.weights_to_algos.contains(agent_weights)
+                    assert expert_policy.weights_to_algos.contains(
+                        agent_weights)
                 expert_policy.set_weights(agent_weights)
                 if vsl_algo.mobaselines_agent.is_single_objective:
-                    assert vsl_algo.mobaselines_agent.weights_to_algos.contains(cluster_weights)
+                    assert vsl_algo.mobaselines_agent.weights_to_algos.contains(
+                        cluster_weights)
 
                 vsl_algo.mobaselines_agent.set_weights(agent_weights)
-                
+
                 trajs_agent, (scalarized_return,
-                                    scalarized_discounted_return,
-                                    vec_return,
-                                    disc_vec_return, scalarized_return_real,
-                                    scalarized_discounted_return_real,
-                                    vec_return_real,
-                                    disc_vec_return_real) = obtain_trajectories_and_eval_mo(
-                                        n_seeds=n_trajs_per_agent, agent=expert_policy, 
-                                        exploration=epsilon,
-                                        env=eval_env, 
-                                        reward_vector=assignment_test.grounding,
-                                        ws=[agent_weights], 
-                                        warn_relabel_not_possible=False,
-                                        ws_eval=[agent_weights], seed=seed)
+                              scalarized_discounted_return,
+                              vec_return,
+                              disc_vec_return, scalarized_return_real,
+                              scalarized_discounted_return_real,
+                              vec_return_real,
+                              disc_vec_return_real) = obtain_trajectories_and_eval_mo(
+                    n_seeds=n_trajs_per_agent, agent=expert_policy,
+                    exploration=epsilon,
+                    env=eval_env,
+                    reward_vector=assignment_test.grounding,
+                    ws=[agent_weights],
+                    warn_relabel_not_possible=False,
+                    ws_eval=[agent_weights], seed=seed)
                 generated_experttrajs_per_agent[agent_id] = trajs_agent
-                print(f"EXPERT TRAJS: {agent_id}", "REAL RETURN", vec_return_real, "DISCOUNTED REAL RETURN", disc_vec_return_real)
-                print(f"EXPERT TRAJS: {agent_id}", "LEARNED RETURN", vec_return, "DISCOUNTED LEARNED RETURN", disc_vec_return)
-            
+                print(f"EXPERT TRAJS: {agent_id}", "REAL RETURN",
+                      vec_return_real, "DISCOUNTED REAL RETURN", disc_vec_return_real)
+                print(f"EXPERT TRAJS: {agent_id}", "LEARNED RETURN",
+                      vec_return, "DISCOUNTED LEARNED RETURN", disc_vec_return)
+
         else:
             trajs_learned = []
             trajs_agent = []
         generated_learnedtrajs_per_cluster[cluster_id] = trajs_learned
-            
-    
-        
+
     return generated_experttrajs_per_agent, generated_learnedtrajs_per_cluster
 
 
@@ -297,7 +301,8 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
 
     fig, axs = plt.subplots(
         nrows=1, ncols=len(agent_data[list(agent_data.keys())[0]]['value_system']),
-        figsize=(8 * len(agent_data[list(agent_data.keys())[0]]['value_system']), 8)
+        figsize=(
+            8 * len(agent_data[list(agent_data.keys())[0]]['value_system']), 8)
     )
     if len(agent_data[list(agent_data.keys())[0]]['value_system']) == 1:
         axs = [axs]
@@ -306,21 +311,28 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
     for i in range(value_dim):
         ax = axs[i]
         if values_names is None:
-            ax.set_title(f"Learned vs Real Alignment (Value {i+1}) by Cluster", fontsize=fontsize+2)
+            ax.set_title(
+                f"Learned vs Real Alignment (Value {i+1}) by Cluster", fontsize=fontsize+2)
             ax.set_xlabel(f"Real Alignment with V{i+1}", fontsize=fontsize)
             ax.set_ylabel(f"Learned Alignment with V{i+1}", fontsize=fontsize)
         else:
-            ax.set_title(f"Learned vs Real Alignment ({values_names[i]}) by Cluster", fontsize=fontsize+2)
-            ax.set_xlabel(f"Real Alignment with {values_names[i]}", fontsize=fontsize)
-            ax.set_ylabel(f"Learned Alignment with {values_names[i]}", fontsize=fontsize)
+            ax.set_title(
+                f"Learned vs Real Alignment ({values_names[i]}) by Cluster", fontsize=fontsize+2)
+            ax.set_xlabel(
+                f"Real Alignment with {values_names[i]}", fontsize=fontsize)
+            ax.set_ylabel(
+                f"Learned Alignment with {values_names[i]}", fontsize=fontsize)
         ax.tick_params(axis='both', labelsize=fontsize)
 
-        
         # Normalize learned rewards to match the range of real rewards, then plot x=y line for reference
-        all_real = [rollout.discounted_sum(traj.v_rews_real[i], gamma=gamma) for aid, trajs in trajs_by_agent.items() for traj in trajs]
-        all_learned = [rollout.discounted_sum(traj.v_rews[i], gamma=gamma) for aid, trajs in trajs_by_agent.items() for traj in trajs ]
-        all_real.extend([rollout.discounted_sum(traj.v_rews_real[i], gamma=gamma) for cid in range(len(trajs_by_cluster)) for traj in trajs_by_cluster[cid]])
-        all_learned.extend([rollout.discounted_sum(traj.v_rews[i], gamma=gamma) for cid in range(len(trajs_by_cluster)) for traj in trajs_by_cluster[cid]])
+        all_real = [rollout.discounted_sum(traj.v_rews_real[i], gamma=gamma)
+                    for aid, trajs in trajs_by_agent.items() for traj in trajs]
+        all_learned = [rollout.discounted_sum(
+            traj.v_rews[i], gamma=gamma) for aid, trajs in trajs_by_agent.items() for traj in trajs]
+        all_real.extend([rollout.discounted_sum(traj.v_rews_real[i], gamma=gamma)
+                        for cid in range(len(trajs_by_cluster)) for traj in trajs_by_cluster[cid]])
+        all_learned.extend([rollout.discounted_sum(traj.v_rews[i], gamma=gamma) for cid in range(
+            len(trajs_by_cluster)) for traj in trajs_by_cluster[cid]])
 
         if all_real and all_learned:
             # Normalize learned rewards to real rewards range
@@ -329,7 +341,8 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
             # Avoid division by zero
             if max_learned - min_learned > 1e-8:
                 all_learned_norm = [
-                    (x - min_learned) / (max_learned - min_learned) * (max_real - min_real) + min_real
+                    (x - min_learned) / (max_learned - min_learned) *
+                    (max_real - min_real) + min_real
                     for x in all_learned
                 ]
             else:
@@ -345,17 +358,21 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
             learned_returns = []
             for traj in trajs_cis:
                 traj: TrajectoryWithValueSystemRews
-                assert hasattr(traj, 'v_rews') and hasattr(traj, 'v_rews_real'), "Trajectories must have v_rews and v_rews_real attributes"
-                #print("TRAJ V_REWS", traj.v_rews, traj.v_rews.shape)
-                #print("TRAJ V_REWS REAL", traj.v_rews_real, traj.v_rews_real.shape)
+                assert hasattr(traj, 'v_rews') and hasattr(
+                    traj, 'v_rews_real'), "Trajectories must have v_rews and v_rews_real attributes"
+                # print("TRAJ V_REWS", traj.v_rews, traj.v_rews.shape)
+                # print("TRAJ V_REWS REAL", traj.v_rews_real, traj.v_rews_real.shape)
 
-                real = rollout.discounted_sum(traj.v_rews_real[i,:], gamma=gamma)
-                learned = rollout.discounted_sum(traj.v_rews[i,:], gamma=gamma)
+                real = rollout.discounted_sum(
+                    traj.v_rews_real[i, :], gamma=gamma)
+                learned = rollout.discounted_sum(
+                    traj.v_rews[i, :], gamma=gamma)
                 if max_learned - min_learned > 1e-8:
-                    learned = (learned - min_learned) / (max_learned - min_learned) * (max_real - min_real) + min_real
+                    learned = (learned - min_learned) / (max_learned -
+                                                         min_learned) * (max_real - min_real) + min_real
                 real_returns.append(real)
                 learned_returns.append(learned)
-            ax.scatter(real_returns, learned_returns, color=color, alpha=0.5, 
+            ax.scatter(real_returns, learned_returns, color=color, alpha=0.5,
                        label=f'Cl. {cid} - VS: {tuple([float("{0:.3f}".format(v)) for v in transform_weights_to_tuple(cluster_assignment.get_value_system(cid))])}', marker='o')
 
         ax.legend(fontsize=fontsize)
@@ -365,43 +382,53 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
     # Save the plot
     dirr = os.path.join(run_dir, 'cluster_rewards', namefig)
     os.makedirs(dirr, exist_ok=True)
-    plt.savefig(os.path.join(dirr, 'return_pairs_learned_policies_per_value.pdf'))
+    plt.savefig(os.path.join(
+        dirr, 'return_pairs_learned_policies_per_value.pdf'))
 
     if show:
         plt.show()
     plt.close()
 
-
     for v1, v2 in itertools.combinations(range(value_dim), 2):
 
         fig, axs = plt.subplots(
             nrows=1, ncols=2,
-            figsize=(8 *2, 8)
+            figsize=(8 * 2, 8)
         )
-        
-        #OPCION B: plot each axis a different value, plot clusters with different colors. Real in left, learned in right.
+
+        # OPCION B: plot each axis a different value, plot clusters with different colors. Real in left, learned in right.
         for real_or_learned in range(2):
             ax = axs[real_or_learned]
             if real_or_learned == 0:
                 ax.set_title(f"Real Alignment by Cluster", fontsize=fontsize+2)
-                ax.set_xlabel(f"Real Alignment with {values_names[v1]}", fontsize=fontsize)
-                ax.set_ylabel(f"Real Alignment with {values_names[v2]}", fontsize=fontsize)
+                ax.set_xlabel(
+                    f"Real Alignment with {values_names[v1]}", fontsize=fontsize)
+                ax.set_ylabel(
+                    f"Real Alignment with {values_names[v2]}", fontsize=fontsize)
             else:
-                ax.set_title(f"Learned Alignment by Cluster", fontsize=fontsize+2)
-                ax.set_xlabel(f"Learned Alignment with {values_names[v1]}", fontsize=fontsize)
-                ax.set_ylabel(f"Real Alignment with {values_names[v2]}", fontsize=fontsize)
+                ax.set_title(f"Learned Alignment by Cluster",
+                             fontsize=fontsize+2)
+                ax.set_xlabel(
+                    f"Learned Alignment with {values_names[v1]}", fontsize=fontsize)
+                ax.set_ylabel(
+                    f"Real Alignment with {values_names[v2]}", fontsize=fontsize)
             ax.tick_params(axis='both', labelsize=fontsize)
 
-            min_val_per_value = {ij: float('inf') for ij in [v1,v2]}
-            max_val_per_value = {ij: float('-inf') for ij in [v1,v2]}
-            returns_cluster = {cid: {ij: [] for ij in [v1,v2]} for cid in range(len(trajs_by_cluster))}
-            for i in [v1,v2]:
-                
+            min_val_per_value = {ij: float('inf') for ij in [v1, v2]}
+            max_val_per_value = {ij: float('-inf') for ij in [v1, v2]}
+            returns_cluster = {cid: {ij: [] for ij in [v1, v2]}
+                               for cid in range(len(trajs_by_cluster))}
+            for i in [v1, v2]:
+
                 # Normalize learned rewards to match the range of real rewards, then plot x=y line for reference
-                all_real = [rollout.discounted_sum(traj.v_rews_real[i], gamma=gamma) for aid, trajs in trajs_by_agent.items() for traj in trajs]
-                all_real.extend([rollout.discounted_sum(traj.v_rews_real[i], gamma=gamma) for cid in range(len(trajs_by_cluster)) for traj in trajs_by_cluster[cid]])
-                all_learned = [rollout.discounted_sum(traj.v_rews[i], gamma=gamma) for aid, trajs in trajs_by_agent.items() for traj in trajs ]
-                all_learned.extend([rollout.discounted_sum(traj.v_rews[i], gamma=gamma) for cid in range(len(trajs_by_cluster)) for traj in trajs_by_cluster[cid]])
+                all_real = [rollout.discounted_sum(
+                    traj.v_rews_real[i], gamma=gamma) for aid, trajs in trajs_by_agent.items() for traj in trajs]
+                all_real.extend([rollout.discounted_sum(traj.v_rews_real[i], gamma=gamma) for cid in range(
+                    len(trajs_by_cluster)) for traj in trajs_by_cluster[cid]])
+                all_learned = [rollout.discounted_sum(
+                    traj.v_rews[i], gamma=gamma) for aid, trajs in trajs_by_agent.items() for traj in trajs]
+                all_learned.extend([rollout.discounted_sum(traj.v_rews[i], gamma=gamma) for cid in range(
+                    len(trajs_by_cluster)) for traj in trajs_by_cluster[cid]])
 
                 # Normalize learned rewards to real rewards range
                 min_real, max_real = min(all_real), max(all_real)
@@ -409,7 +436,8 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
                 # Avoid division by zero
                 if max_learned - min_learned > 1e-8:
                     all_learned_norm = [
-                        (x - min_learned) / (max_learned - min_learned) * (max_real - min_real) + min_real
+                        (x - min_learned) / (max_learned - min_learned) *
+                        (max_real - min_real) + min_real
                         for x in all_learned
                     ]
                 else:
@@ -427,29 +455,34 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
                     learned_returns = []
                     for traj in trajs_cis:
                         traj: TrajectoryWithValueSystemRews
-                        assert hasattr(traj, 'v_rews') and hasattr(traj, 'v_rews_real'), "Trajectories must have v_rews and v_rews_real attributes"
-                        #print("TRAJ V_REWS", traj.v_rews, traj.v_rews.shape)
-                        #print("TRAJ V_REWS REAL", traj.v_rews_real, traj.v_rews_real.shape)
+                        assert hasattr(traj, 'v_rews') and hasattr(
+                            traj, 'v_rews_real'), "Trajectories must have v_rews and v_rews_real attributes"
+                        # print("TRAJ V_REWS", traj.v_rews, traj.v_rews.shape)
+                        # print("TRAJ V_REWS REAL", traj.v_rews_real, traj.v_rews_real.shape)
 
-                        real = rollout.discounted_sum(traj.v_rews_real[i,:], gamma=gamma)
-                        learned = rollout.discounted_sum(traj.v_rews[i,:], gamma=gamma)
+                        real = rollout.discounted_sum(
+                            traj.v_rews_real[i, :], gamma=gamma)
+                        learned = rollout.discounted_sum(
+                            traj.v_rews[i, :], gamma=gamma)
                         if max_learned - min_learned > 1e-8:
-                            learned = (learned - min_learned) / (max_learned - min_learned) * (max_real - min_real) + min_real
+                            learned = (learned - min_learned) / (max_learned -
+                                                                 min_learned) * (max_real - min_real) + min_real
                         real_returns.append(real)
                         learned_returns.append(learned)
-                    returns_cluster[cid][i]= learned_returns if real_or_learned == 1 else real_returns
+                    returns_cluster[cid][i] = learned_returns if real_or_learned == 1 else real_returns
 
-            ax.plot([min_val_per_value[v1], max_val_per_value[v1]], [min_val_per_value[v2], max_val_per_value[v2]], 'k--', alpha=0.0)
+            ax.plot([min_val_per_value[v1], max_val_per_value[v1]], [
+                    min_val_per_value[v2], max_val_per_value[v2]], 'k--', alpha=0.0)
             for cid in range(len(trajs_by_cluster)):
                 if len(trajs_by_cluster[cid]) == 0:
                     continue
                 returns_cluster_cid = returns_cluster[cid]
-                #print(len(returns_cluster_cid), returns_cluster_cid)
-                #exit()
+                # print(len(returns_cluster_cid), returns_cluster_cid)
+                # exit()
 
-                ax.scatter(returns_cluster_cid[v1], returns_cluster_cid[v2], color=cluster_colors[cid] if cid in cluster_colors else None, alpha=0.5, 
-                        label=f'Cl. {cid} - VS: {tuple([float("{0:.3f}".format(v)) for v in transform_weights_to_tuple(cluster_assignment.get_value_system(cid))])}', marker='o')
-                
+                ax.scatter(returns_cluster_cid[v1], returns_cluster_cid[v2], color=cluster_colors[cid] if cid in cluster_colors else None, alpha=0.5,
+                           label=f'Cl. {cid} - VS: {tuple([float("{0:.3f}".format(v)) for v in transform_weights_to_tuple(cluster_assignment.get_value_system(cid))])}', marker='o')
+
             ax.legend(fontsize=fontsize)
             ax.grid(True)
         plt.tight_layout()
@@ -457,40 +490,47 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
         # Save the plot
         dirr = os.path.join(run_dir, 'cluster_rewards', namefig)
         os.makedirs(dirr, exist_ok=True)
-        plt.savefig(os.path.join(dirr, f'return_pairs_real_vs_learned_policies_{v1}_{v2}.pdf'))
+        plt.savefig(os.path.join(
+            dirr, f'return_pairs_real_vs_learned_policies_{v1}_{v2}.pdf'))
 
         if show:
             plt.show()
         plt.close()
-    
+
     # OPCION A1: plot every agent trajectory with real and learned reward instead. Each cluster will have a different subplot.
-    usable_clusters = [cid for cid, agents_cid in enumerate(cluster_to_agents) if len(agents_cid) > 0]
+    usable_clusters = [cid for cid, agents_cid in enumerate(
+        cluster_to_agents) if len(agents_cid) > 0]
     n_clusters = len(usable_clusters)
     ncols = min(4, n_clusters)
     nrows = (n_clusters + ncols - 1) // ncols
-    fig, axs = plt.subplots(figsize=(4 * (ncols + 2), 4 * (nrows+1)), nrows=nrows, ncols=ncols)
+    fig, axs = plt.subplots(
+        figsize=(4 * (ncols + 2), 4 * (nrows+1)), nrows=nrows, ncols=ncols)
     axs = np.array(axs).reshape(-1)  # Flatten in case of single row/col
-    #print(usable_clusters, [1 for i in trajs_by_cluster if len(i) > 0])
-    #input()
+    # print(usable_clusters, [1 for i in trajs_by_cluster if len(i) > 0])
+    # input()
     for cid_index, cid in enumerate(usable_clusters):
         agents_cid = cluster_to_agents[cid]
         assert len(agents_cid) > 0
         ax = axs[cid_index]
-        ax.set_title(f"Cluster {cid} (VS: {tuple([float('{0:.3f}'.format(v)) for v in transform_weights_to_tuple(cluster_assignment.get_value_system(cid))])}) - Learned vs Real Returns")
-        ax.set_xlabel("Real Return", fontsize=fontsize )
-        ax.set_ylabel("Learned Return", fontsize=fontsize )
+        ax.set_title(
+            f"Cluster {cid} (VS: {tuple([float('{0:.3f}'.format(v)) for v in transform_weights_to_tuple(cluster_assignment.get_value_system(cid))])}) - Learned vs Real Returns")
+        ax.set_xlabel("Real Return", fontsize=fontsize)
+        ax.set_ylabel("Learned Return", fontsize=fontsize)
         ax.tick_params(axis='both', labelsize=fontsize)
-        
-        all_real = [rollout.discounted_sum(traj.rews_real, gamma=gamma) for aid, trajs in trajs_by_agent.items() for traj in trajs if aid in cluster_to_agents[cid]]
-        all_learned = [rollout.discounted_sum(traj.rews, gamma=gamma) for aid, trajs in trajs_by_agent.items() for traj in trajs if aid in cluster_to_agents[cid]]
-        all_real.extend([rollout.discounted_sum(traj.rews_real, gamma=gamma) for traj in trajs_by_cluster[cid]])
-        all_learned.extend([rollout.discounted_sum(traj.rews, gamma=gamma) for traj in trajs_by_cluster[cid]])
+
+        all_real = [rollout.discounted_sum(traj.rews_real, gamma=gamma) for aid, trajs in trajs_by_agent.items(
+        ) for traj in trajs if aid in cluster_to_agents[cid]]
+        all_learned = [rollout.discounted_sum(traj.rews, gamma=gamma) for aid, trajs in trajs_by_agent.items(
+        ) for traj in trajs if aid in cluster_to_agents[cid]]
+        all_real.extend([rollout.discounted_sum(traj.rews_real, gamma=gamma)
+                        for traj in trajs_by_cluster[cid]])
+        all_learned.extend([rollout.discounted_sum(
+            traj.rews, gamma=gamma) for traj in trajs_by_cluster[cid]])
         min_val_real = min(all_real)
         max_val_real = max(all_real)
         min_val_learned = min(all_learned)
         max_val_learned = max(all_learned)
-        
-        
+
         agent_colors = plt.cm.viridis(np.linspace(0, 1, len(agents_cid)))
         for iad, aid in enumerate(agents_cid):
             trajs_ag = trajs_by_agent[aid]
@@ -502,7 +542,8 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
                 learned = rollout.discounted_sum(traj.rews, gamma=gamma)
 
                 if max_val_learned - min_val_learned > 1e-8:
-                    learned = (learned - min_val_learned) / (max_val_learned - min_val_learned) * (max_val_real - min_val_real) + min_val_real
+                    learned = (learned - min_val_learned) / (max_val_learned -
+                                                             min_val_learned) * (max_val_real - min_val_real) + min_val_real
                 if real is not None and learned is not None:
                     real_returns.append(real)
                     learned_returns.append(learned)
@@ -511,7 +552,8 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
                 label = f'Agent: '
                 if agent_vs is not None:
                     label += f'{tuple([float("{0:.3f}".format(v)) for v in agent_vs])}'
-                ax.scatter(real_returns, learned_returns, color=agent_colors[iad], alpha=0.5, label=label, marker='o')
+                ax.scatter(real_returns, learned_returns,
+                           color=agent_colors[iad], alpha=0.5, label=label, marker='o')
         # add the cluster trajectories.
         trajs_cluster = trajs_by_cluster[cid]
         real_returns = []
@@ -521,18 +563,20 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
             real = rollout.discounted_sum(traj.rews_real, gamma=gamma)
             learned = rollout.discounted_sum(traj.rews, gamma=gamma)
             if max_val_learned - min_val_learned > 1e-8:
-                learned = (learned - min_val_learned) / (max_val_learned - min_val_learned) * (max_val_real - min_val_real) + min_val_real
+                learned = (learned - min_val_learned) / (max_val_learned -
+                                                         min_val_learned) * (max_val_real - min_val_real) + min_val_real
             if real is not None and learned is not None:
                 real_returns.append(real)
                 learned_returns.append(learned)
         if real_returns and learned_returns:
-            cvs = transform_weights_to_tuple(cluster_assignment.get_value_system(cid))
+            cvs = transform_weights_to_tuple(
+                cluster_assignment.get_value_system(cid))
             label = f'Cl. {cid} - VS: '
             if cvs is not None:
                 label += f'{tuple([float("{0:.3f}".format(v)) for v in cvs])}'
-            ax.scatter(real_returns, learned_returns, color=cluster_colors[cid], alpha=0.5, label=label, marker='x')
-        
-        
+            ax.scatter(real_returns, learned_returns,
+                       color=cluster_colors[cid], alpha=0.5, label=label, marker='x')
+
         min_val = min(min_val_real, min_val_learned)
         max_val = max(max_val_real, max_val_learned)
 
@@ -551,9 +595,11 @@ def plot_return_pairs(trajs_by_agent, trajs_by_cluster, cluster_colors, run_dir,
         plt.show()
     plt.close()
 
+
 def plot_cluster_representation(vsl_algo: PVSL):
     pass
     # Validacion de clusters: pintar todas las trayectorias pero en el plano o 3d por objetivos, pintando los clusters.
+
 
 def TAC_KENDALL(vsl_algo):
     # Compute Kendall's Tau for the learned policies to see if they respect the pareto efficiency.
@@ -561,6 +607,7 @@ def TAC_KENDALL(vsl_algo):
     # Put in the tables too.
     # TODO..
     pass
+
 
 def plot_learned_and_expert_reward_pairs(vsl_algo: PVSL, learned_rewards_per_al_func, vsi_or_vgl='vsi', target_align_funcs_to_learned_align_funcs=None, namefig='reward_pairs', show=False, targets=None, trajs_sampled=None):
     # Select target alignment functions based on vsi_or_vgl
@@ -576,7 +623,7 @@ def plot_learned_and_expert_reward_pairs(vsl_algo: PVSL, learned_rewards_per_al_
     else:
         rows = 1  # If there are 3 or fewer targets, use a single row
         cols = num_targets
-        
+
     # Create figure and subplots with dynamic layout
     fig, axes = plt.subplots(rows, cols, figsize=(
         16, 8), constrained_layout=True)
@@ -601,37 +648,36 @@ def plot_learned_and_expert_reward_pairs(vsl_algo: PVSL, learned_rewards_per_al_
         else:
             learned_al = all_learned_al
             std_learned_al = [0 for _ in learned_al]
-        
+
         # TODO: put it callable learner reward?
         # If the environment does not have state_dim, we assume it is a single value
-            
+
         if isinstance(learned_rewards_per_al_func, list):
             lr_per_round = [learned_rewards_per_al_func[j](
                 al) for j in range(len(learned_rewards_per_al_func))]
-            
+
         else:
-            lr_per_round  = [learned_rewards_per_al_func(al), ]
+            lr_per_round = [learned_rewards_per_al_func(al), ]
         traj_expert_rewards_al = [0.0 for _ in range(len(lr_per_round))]
         traj_learned_rewards_al = [0.0 for _ in range(len(lr_per_round))]
-        expert_reward_al = partial(vsl_algo.env.get_reward_per_align_func, align_func=al)
-            
-        
+        expert_reward_al = partial(
+            vsl_algo.env.get_reward_per_align_func, align_func=al)
+
         for round_ in range(len(lr_per_round)):
             learned_reward_al = lr_per_round[round_]
             traj_expert_rewards_al[round_] = np.array(
                 [np.sum(
-                    [float(expert_reward_al(state=s, action=a, next_state=ns, done=None)) for s,a,ns in zip(
+                    [float(expert_reward_al(state=s, action=a, next_state=ns, done=None)) for s, a, ns in zip(
                         trajs_sampled[j].obs[:-1], trajs_sampled[j].acts, trajs_sampled[j].obs[1:])])
-                            for j in range(len(trajs_sampled))])
+                 for j in range(len(trajs_sampled))])
             traj_learned_rewards_al[round_] = np.array(
                 [np.sum(
-                    [float(learned_reward_al(state=s, action=a, next_state=ns, done=None)) for s,a,ns in zip(
+                    [float(learned_reward_al(state=s, action=a, next_state=ns, done=None)) for s, a, ns in zip(
                         trajs_sampled[j].obs[:-1], trajs_sampled[j].acts, trajs_sampled[j].obs[1:])])
-                            for j in range(len(trajs_sampled))])
-        
+                 for j in range(len(trajs_sampled))])
+
         traj_learned_rewards_al = np.mean(traj_learned_rewards_al, axis=0)
         traj_expert_rewards_al = np.mean(traj_expert_rewards_al, axis=0)
-            
 
         # Flatten rewards for plotting as pairs
         learned_rewards_flat = traj_learned_rewards_al.flatten()
@@ -659,15 +705,16 @@ def plot_learned_and_expert_reward_pairs(vsl_algo: PVSL, learned_rewards_per_al_
                 color='red', linestyle='--', alpha=0.7, label='x=y')
 
         # Set labels and title for each subplot
-        al = al[1] if isinstance(al[0],str) else al 
-        learned_al = learned_al[1] if isinstance(learned_al[0],str) else learned_al
+        al = al[1] if isinstance(al[0], str) else al
+        learned_al = learned_al[1] if isinstance(
+            learned_al[0], str) else learned_al
         if vsi_or_vgl != 'vgl':
             ax.set_title(
                 f'Original: {tuple([float("{0:.3f}".format(v)) for v in al])}\nLearned: {tuple([float("{0:.3f}".format(v)) for v in learned_al])}\nSTD: {tuple([float("{0:.3f}".format(v)) for v in std_learned_al])}')
         else:
             ax.set_title(
                 f'VS aggregation: {tuple([float("{0:.3f}".format(v)) for v in al])}')
-        
+
         ax.legend()
 
     # Remove unused axes if the number of targets is odd
@@ -718,7 +765,8 @@ def plot_learned_and_expert_rewards(vsl_algo, learned_rewards_per_al_func, cmap=
             learned_reward_al = learned_rewards_per_al_func(al)()
         im1 = axesUp[i].imshow(learned_reward_al, cmap=cmap, interpolation='nearest',
                                aspect=learned_reward_al.shape[1]/learned_reward_al.shape[0])
-        learned_al = learned_al[1] if isinstance(learned_al[0],str) else learned_al
+        learned_al = learned_al[1] if isinstance(
+            learned_al[0], str) else learned_al
 
         axesUp[i].set_title(
             f'{tuple([float("{0:.3f}".format(v)) for v in learned_al])}\nSTD: {tuple([float("{0:.3f}".format(v)) for v in std_learned_al])}')
@@ -748,9 +796,10 @@ def plot_learned_and_expert_rewards(vsl_algo, learned_rewards_per_al_func, cmap=
         plt.show()
     plt.close()
 
-def plot_learned_and_expert_occupancy_measures(vsl_algo: PVSL, 
-        learned_rewards_per_al_func,  vsi_or_vgl='vsi', target_align_funcs_to_learned_align_funcs=None, 
-        namefig='mce_vsl_test', show=False, targets=None, assumed_expert_pi: VAlignedDictSpaceActionPolicy = None):
+
+def plot_learned_and_expert_occupancy_measures(vsl_algo: PVSL,
+                                               learned_rewards_per_al_func,  vsi_or_vgl='vsi', target_align_funcs_to_learned_align_funcs=None,
+                                               namefig='mce_vsl_test', show=False, targets=None, assumed_expert_pi: VAlignedDictSpaceActionPolicy = None):
     targets = targets if targets is not None else (vsl_algo.vsi_target_align_funcs if vsi_or_vgl == 'vsi' else vsl_algo.vgl_target_align_funcs if vsi_or_vgl == 'vgl' else itertools.chain(
         vsl_algo.vsi_target_align_funcs, vsl_algo.vgl_target_align_funcs))
 
@@ -763,7 +812,8 @@ def plot_learned_and_expert_occupancy_measures(vsl_algo: PVSL,
     axesUp = subfigs[0].subplots(nrows=1, ncols=len(targets), sharey=True)
     axesDown = subfigs[1].subplots(nrows=1, ncols=len(targets), sharey=True)
 
-    assert isinstance(vsl_algo.learned_policy_per_va, VAlignedDictSpaceActionPolicy)
+    assert isinstance(vsl_algo.learned_policy_per_va,
+                      VAlignedDictSpaceActionPolicy)
     for i, al in enumerate(targets):
 
         # Plot the first matrix
@@ -784,7 +834,8 @@ def plot_learned_and_expert_occupancy_measures(vsl_algo: PVSL,
                 occupancies.append(mce_occupancy_measures(
                     env=vsl_algo.env,
                     reward=learned_rewards_per_al_func[j](al)(),
-                    pi = vsl_algo.learned_policy_per_va.policy_per_va(target_align_funcs_to_learned_align_funcs[al]),
+                    pi=vsl_algo.learned_policy_per_va.policy_per_va(
+                        target_align_funcs_to_learned_align_funcs[al]),
                     discount=vsl_algo.discount,
                     deterministic=not vsl_algo.learn_stochastic_policy,
                     initial_state_distribution=vsl_algo.env.initial_state_dist,
@@ -796,20 +847,22 @@ def plot_learned_and_expert_occupancy_measures(vsl_algo: PVSL,
 
             std_oc = 0.0
             learned_oc = mce_occupancy_measures(env=vsl_algo.env,
-                                                reward=learned_rewards_per_al_func(al)(),
+                                                reward=learned_rewards_per_al_func(
+                                                    al)(),
                                                 discount=vsl_algo.discount,
-                                                pi=vsl_algo.learned_policy_per_va.policy_per_va(target_align_funcs_to_learned_align_funcs[al]),
+                                                pi=vsl_algo.learned_policy_per_va.policy_per_va(
+                                                    target_align_funcs_to_learned_align_funcs[al]),
                                                 deterministic=not vsl_algo.learn_stochastic_policy,
                                                 initial_state_distribution=vsl_algo.env.initial_state_dist,
                                                 use_action_visitations=use_action_visitations)[1]
         ocs = np.transpose(learned_oc)
 
-        
-
         eocs = np.transpose(mce_occupancy_measures(env=vsl_algo.env,
-                                                   reward=vsl_algo.env.reward_matrix_per_align_func(al),
+                                                   reward=vsl_algo.env.reward_matrix_per_align_func(
+                                                       al),
                                                    discount=vsl_algo.discount,
-                                                   pi=assumed_expert_pi.policy_per_va(al),
+                                                   pi=assumed_expert_pi.policy_per_va(
+                                                       al),
                                                    deterministic=not vsl_algo.learn_stochastic_policy,
                                                    initial_state_distribution=vsl_algo.env.initial_state_dist,
                                                    use_action_visitations=use_action_visitations)[1])
@@ -825,7 +878,8 @@ def plot_learned_and_expert_occupancy_measures(vsl_algo: PVSL,
 
         im1 = axesUp[i].imshow(ocs, cmap='viridis', interpolation='nearest',
                                aspect=vsl_algo.env.state_dim/vsl_algo.env.action_dim)
-        learned_al = learned_al[1] if isinstance(learned_al[0],str) else learned_al
+        learned_al = learned_al[1] if isinstance(
+            learned_al[0], str) else learned_al
         axesUp[i].set_title(
             f'{tuple([float("{0:.3f}".format(v)) for v in learned_al])}\nSTD: {tuple([float("{0:.3f}".format(v)) for v in std_learned_al])}')
         axesUp[i].set_xlabel(
@@ -858,69 +912,85 @@ def plot_learned_and_expert_occupancy_measures(vsl_algo: PVSL,
 
 
 def compute_stats(data_dict, metric_name='acc'):
-        ratios = []
+    ratios = []
 
-        if isinstance(data_dict[list(data_dict.keys())[0]][metric_name][list(data_dict[list(data_dict.keys())[0]][metric_name].keys())[0]][0], dict):
-            epsilons = data_dict[list(data_dict.keys())[0]][metric_name][list(data_dict[list(data_dict.keys())[0]][metric_name].keys())[0]][0].keys()
-        
-            means_per_al = {eps: {al: {} for al in data_dict[list(data_dict.keys())[0]][metric_name].keys()} for eps in epsilons}
-            stds_per_al = {eps: {al: {} for al in data_dict[list(data_dict.keys())[0]][metric_name].keys()} for eps in epsilons}
-            labels_per_al = {eps: {al: [] for al in data_dict[list(data_dict.keys())[0]][metric_name].keys()} for eps in epsilons} 
-            
-            for ratio in sorted(data_dict.keys()):
-                ratios.append(ratio)
-                for eps in epsilons:
-                    for al, values in data_dict[ratio][metric_name].items():
-                        n = len(values)
-                        values_for_eps = [v[eps] for v in values]
-                        
-                        means_per_al[eps][al][ratio] = np.mean(values_for_eps)
-                        stds_per_al[eps][al][ratio] = np.std(values_for_eps)
-                        labels_per_al[eps][al].append(f'{tuple([float("{0:.3f}".format(t)) for t in al])}')  # Convert the tuple key to a string for labeling
-            #vector of means, stds and labels and number of repetitions per ratio.
-            
-            return ratios, means_per_al, stds_per_al, labels_per_al, n
-        
-        else:
-            means_per_al = {al: {} for al in data_dict[list(data_dict.keys())[0]][metric_name].keys()}
-            stds_per_al = {al: {} for al in data_dict[list(data_dict.keys())[0]][metric_name].keys()}
-            labels_per_al = {al: [] for al in data_dict[list(data_dict.keys())[0]][metric_name].keys()}
-            ratios = []
-            
-            for ratio in sorted(data_dict.keys()):
-                ratios.append(ratio)
+    if isinstance(data_dict[list(data_dict.keys())[0]][metric_name][list(data_dict[list(data_dict.keys())[0]][metric_name].keys())[0]][0], dict):
+        epsilons = data_dict[list(data_dict.keys())[0]][metric_name][list(
+            data_dict[list(data_dict.keys())[0]][metric_name].keys())[0]][0].keys()
+
+        means_per_al = {eps: {al: {} for al in data_dict[list(
+            data_dict.keys())[0]][metric_name].keys()} for eps in epsilons}
+        stds_per_al = {eps: {al: {} for al in data_dict[list(
+            data_dict.keys())[0]][metric_name].keys()} for eps in epsilons}
+        labels_per_al = {eps: {al: [] for al in data_dict[list(
+            data_dict.keys())[0]][metric_name].keys()} for eps in epsilons}
+
+        for ratio in sorted(data_dict.keys()):
+            ratios.append(ratio)
+            for eps in epsilons:
                 for al, values in data_dict[ratio][metric_name].items():
                     n = len(values)
-                    means_per_al[al][ratio] = np.mean(values)
-                    stds_per_al[al][ratio] = np.std(values)
-                    labels_per_al[al].append(f'{tuple([float("{0:.3f}".format(t)) for t in al])}')  # Convert the tuple key to a string for labeling
-            #vector of means, stds and labels and number of repetitions per ratio.
-            
-            return ratios, means_per_al, stds_per_al, labels_per_al, n
+                    values_for_eps = [v[eps] for v in values]
+
+                    means_per_al[eps][al][ratio] = np.mean(values_for_eps)
+                    stds_per_al[eps][al][ratio] = np.std(values_for_eps)
+                    # Convert the tuple key to a string for labeling
+                    labels_per_al[eps][al].append(
+                        f'{tuple([float("{0:.3f}".format(t)) for t in al])}')
+        # vector of means, stds and labels and number of repetitions per ratio.
+
+        return ratios, means_per_al, stds_per_al, labels_per_al, n
+
+    else:
+        means_per_al = {al: {} for al in data_dict[list(
+            data_dict.keys())[0]][metric_name].keys()}
+        stds_per_al = {al: {} for al in data_dict[list(
+            data_dict.keys())[0]][metric_name].keys()}
+        labels_per_al = {al: [] for al in data_dict[list(
+            data_dict.keys())[0]][metric_name].keys()}
+        ratios = []
+
+        for ratio in sorted(data_dict.keys()):
+            ratios.append(ratio)
+            for al, values in data_dict[ratio][metric_name].items():
+                n = len(values)
+                means_per_al[al][ratio] = np.mean(values)
+                stds_per_al[al][ratio] = np.std(values)
+                # Convert the tuple key to a string for labeling
+                labels_per_al[al].append(
+                    f'{tuple([float("{0:.3f}".format(t)) for t in al])}')
+        # vector of means, stds and labels and number of repetitions per ratio.
+
+        return ratios, means_per_al, stds_per_al, labels_per_al, n
+
 
 def plot_vs_preference_metrics(metrics_per_ratio, namefig='test_metrics', show=False,
-                                        align_func_colors=None,
-                                        usecmap = 'viridis',
-                                        value_expectations_per_ratio=None,
-                                        value_expectations_per_ratio_expert=None,
-                                        target_align_funcs_to_learned_align_funcs = None,
-                                        values_names = None,
-                                    ):
-    
+                               align_func_colors=None,
+                               usecmap='viridis',
+                               value_expectations_per_ratio=None,
+                               value_expectations_per_ratio_expert=None,
+                               target_align_funcs_to_learned_align_funcs=None,
+                               values_names=None,
+                               ):
+
     # Compute stats for 'f1' and 'ce'
-    #ratios, f1_means, f1_stds, f1_labels, n = compute_stats(metrics_per_ratio, 'f1')
-    #ratios, jsd_means, jsd_stds, ce_labels, n = compute_stats(metrics_per_ratio, 'jsd')
-    ratios, acc_means_per_epsilon, acc_stds_per_epsilon, acc_labels_per_epsilon, n = compute_stats(metrics_per_ratio, 'acc')
-    _, n_repescados_means_per_epsilon, n_repescados_stds_per_epsilon, _, n = compute_stats(metrics_per_ratio, 'repescados')
-    _, jsd_means_per_epsilon, jsd_stds_per_epsilon, jsd_labels_per_epsilon, n = compute_stats(metrics_per_ratio, 'jsd')
-    
+    # ratios, f1_means, f1_stds, f1_labels, n = compute_stats(metrics_per_ratio, 'f1')
+    # ratios, jsd_means, jsd_stds, ce_labels, n = compute_stats(metrics_per_ratio, 'jsd')
+    ratios, acc_means_per_epsilon, acc_stds_per_epsilon, acc_labels_per_epsilon, n = compute_stats(
+        metrics_per_ratio, 'acc')
+    _, n_repescados_means_per_epsilon, n_repescados_stds_per_epsilon, _, n = compute_stats(
+        metrics_per_ratio, 'repescados')
+    _, jsd_means_per_epsilon, jsd_stds_per_epsilon, jsd_labels_per_epsilon, n = compute_stats(
+        metrics_per_ratio, 'jsd')
+
     # Plot 'acc'
     namefig_base = namefig
     for eps in acc_means_per_epsilon.keys():
-        namefig = namefig_base +f'_EPS{eps}_'
+        namefig = namefig_base + f'_EPS{eps}_'
         plt.figure(figsize=(16, 8))
-        
-        viridis = cm.get_cmap(usecmap, len(acc_means_per_epsilon[eps]))  # Get 'viridis' colormap with number of AL strategies
+
+        # Get 'viridis' colormap with number of AL strategies
+        viridis = cm.get_cmap(usecmap, len(acc_means_per_epsilon[eps]))
         target_al_func_ro_mean_align_func = None
 
         for idx, al in enumerate(acc_means_per_epsilon[eps].keys()):
@@ -941,29 +1011,33 @@ def plot_vs_preference_metrics(metrics_per_ratio, namefig='test_metrics', show=F
                 else:
                     learned_al = all_learned_al
                     std_learned_al = [0 for _ in learned_al]
-                
+
                 orig_al = tuple([float("{0:.3f}".format(v)) for v in al])
-                std_learned_al = tuple([float("{0:.3f}".format(v)) for v in std_learned_al])
-                learned_al = tuple([float("{0:.3f}".format(v)) for v in learned_al])
+                std_learned_al = tuple(
+                    [float("{0:.3f}".format(v)) for v in std_learned_al])
+                learned_al = tuple(
+                    [float("{0:.3f}".format(v)) for v in learned_al])
                 label = f'Original: {orig_al}\nLearned: {learned_al}\nSTD: {std_learned_al}'
                 target_al_func_ro_mean_align_func[al] = learned_al
             else:
                 label = f'Target al: {tuple([float("{0:.3f}".format(v)) for v in al])}'
             assert ratios == sorted(ratios)
-            plt.errorbar(ratios, [acc_means_per_epsilon[eps][al][r] for r in ratios], yerr=[acc_stds_per_epsilon[eps][al][r] for r in ratios], label=label
-                        , capsize=5, marker='o',color=color,ecolor=color)
+            plt.errorbar(ratios, [acc_means_per_epsilon[eps][al][r] for r in ratios], yerr=[
+                         acc_stds_per_epsilon[eps][al][r] for r in ratios], label=label, capsize=5, marker='o', color=color, ecolor=color)
 
-        plt.title(f'Avg. preference comparisons accuracy over {n} runs (tol: {eps})')
-        #plt.ylabel('F1 score (weighted)')
+        plt.title(
+            f'Avg. preference comparisons accuracy over {n} runs (tol: {eps})')
+        # plt.ylabel('F1 score (weighted)')
         plt.ylabel('Accuracy')
-        plt.xlabel('Proportion of pairs of trajectories chosen by the expert versus randomly')
-        plt.ylim((0.0,1.1))
-        
-        
-        plt.legend(title="VS aggregation function", bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.xlabel(
+            'Proportion of pairs of trajectories chosen by the expert versus randomly')
+        plt.ylim((0.0, 1.1))
+
+        plt.legend(title="VS aggregation function",
+                   bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.tight_layout()
-        
-        #plt.savefig('results/'+ 'f1_score_' + namefig + f'_{n}_runs.pdf')
+
+        # plt.savefig('results/'+ 'f1_score_' + namefig + f'_{n}_runs.pdf')
         dirr = os.path.join('test_results', namefig)
         os.makedirs(dirr, exist_ok=True)
         plt.savefig(os.path.join(dirr, 'acc_score_' + f'_{n}_runs.pdf'))
@@ -972,7 +1046,6 @@ def plot_vs_preference_metrics(metrics_per_ratio, namefig='test_metrics', show=F
             plt.show()
 
         plt.figure(figsize=(16, 8))
-        
 
         for idx, al in enumerate(jsd_means_per_epsilon[eps].keys()):
 
@@ -980,7 +1053,6 @@ def plot_vs_preference_metrics(metrics_per_ratio, namefig='test_metrics', show=F
                 color = align_func_colors(al)
             else:
                 color = viridis(idx / (len(jsd_means_per_epsilon[eps]) - 1))
-
 
             if target_align_funcs_to_learned_align_funcs is not None:
                 all_learned_al = [ta_to_la[al] for ta_to_la in target_align_funcs_to_learned_align_funcs] if isinstance(
@@ -994,33 +1066,38 @@ def plot_vs_preference_metrics(metrics_per_ratio, namefig='test_metrics', show=F
                     std_learned_al = [0 for _ in learned_al]
 
                 orig_al = tuple([float("{0:.3f}".format(v)) for v in al])
-                std_learned_al = tuple([float("{0:.3f}".format(v)) for v in std_learned_al])
-                learned_al = tuple([float("{0:.3f}".format(v)) for v in learned_al])
+                std_learned_al = tuple(
+                    [float("{0:.3f}".format(v)) for v in std_learned_al])
+                learned_al = tuple(
+                    [float("{0:.3f}".format(v)) for v in learned_al])
                 label = f'Original: {orig_al}\nLearned: {learned_al}\nSTD: {std_learned_al}'
             else:
                 label = f'Target al: {tuple([float("{0:.3f}".format(v)) for v in al])}'
             assert ratios == sorted(ratios)
-            plt.errorbar(ratios,[jsd_means_per_epsilon[eps][al][r] for r in ratios], yerr=[jsd_stds_per_epsilon[eps][al][r] for r in ratios], label=label
-                        , capsize=5, marker='o',color=color,ecolor=color)
+            plt.errorbar(ratios, [jsd_means_per_epsilon[eps][al][r] for r in ratios], yerr=[
+                         jsd_stds_per_epsilon[eps][al][r] for r in ratios], label=label, capsize=5, marker='o', color=color, ecolor=color)
 
         plt.title(f'Avg. Jensen Shannon div. over {n} runs')
         plt.ylabel('JSD')
-        #plt.title(f'Avg. number of reinstated pairs: negative pairs treated as positives due to the tolerance {eps} over {n} runs')
-        plt.xlabel('Proportion of pairs of trajectories chosen by the expert versus randomly')
-        plt.legend(title="VS aggregation function", bbox_to_anchor=(1.05, 1), loc='upper left')
+        # plt.title(f'Avg. number of reinstated pairs: negative pairs treated as positives due to the tolerance {eps} over {n} runs')
+        plt.xlabel(
+            'Proportion of pairs of trajectories chosen by the expert versus randomly')
+        plt.legend(title="VS aggregation function",
+                   bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.tight_layout()
 
-        #plt.savefig('results/' + 'jsd_score_' + namefig + f'_{n}_runs.pdf')
+        # plt.savefig('results/' + 'jsd_score_' + namefig + f'_{n}_runs.pdf')
         dirr = os.path.join('test_results', namefig)
         os.makedirs(dirr, exist_ok=True)
         plt.savefig(os.path.join(dirr, 'jsd_score_' + f'_{n}_runs.pdf'))
         # Show the plot
         if show:
             plt.show()
-            
+
         plt.close()
 
-        save_stats_to_csv_and_latex(acc_means_per_epsilon[eps], acc_stds_per_epsilon[eps], jsd_means_per_epsilon[eps], jsd_stds_per_epsilon[eps], n_repescados_means_per_epsilon[eps], n_repescados_stds_per_epsilon[eps],  acc_labels_per_epsilon[eps], namefig, n, value_expectations_per_ratio, value_expectations_per_ratio_expert, values_names, target_align_funcs_to_learned_align_funcs=target_al_func_ro_mean_align_func)
+        save_stats_to_csv_and_latex(acc_means_per_epsilon[eps], acc_stds_per_epsilon[eps], jsd_means_per_epsilon[eps], jsd_stds_per_epsilon[eps], n_repescados_means_per_epsilon[eps], n_repescados_stds_per_epsilon[eps],
+                                    acc_labels_per_epsilon[eps], namefig, n, value_expectations_per_ratio, value_expectations_per_ratio_expert, values_names, target_align_funcs_to_learned_align_funcs=target_al_func_ro_mean_align_func)
 
 
 def save_stats_to_csv_and_latex(metric1_means, metric1_stds, metric2_means, metric2_stds, metric3_means, metric3_stds, labels, namefig, n, value_expectations_per_ratio, value_expectations_per_ratio_expert, values_names, target_align_funcs_to_learned_align_funcs=None):
@@ -1049,29 +1126,36 @@ def save_stats_to_csv_and_latex(metric1_means, metric1_stds, metric2_means, metr
         m3_at_1 = f'{metric3_means[target_vs_function][1.0]:.2e} ± {metric3_stds[target_vs_function][1.0]:.2e}'
 
         # Prepare metrics row with conditional "Learned VS" column
-        metrics_row = [str(target_vs_function), m1_at_0, m1_at_1, m2_at_0, m2_at_1,m3_at_0, m3_at_1]
+        metrics_row = [str(target_vs_function), m1_at_0,
+                       m1_at_1, m2_at_0, m2_at_1, m3_at_0, m3_at_1]
         if target_align_funcs_to_learned_align_funcs:
             learned_vs = target_align_funcs_to_learned_align_funcs[target_vs_function]
-            metrics_row.insert(1, learned_vs)  # Insert "Learned VS" as the second column
+            # Insert "Learned VS" as the second column
+            metrics_row.insert(1, learned_vs)
         metrics_rows.append(metrics_row)
 
         # Prepare expert and learned policy averages for policy table
         expert_values = []
         learned_values = []
         for alb in values_names.keys():
-            #expert_data = [(np.mean(data_rep[alb])-np.mean([d[alb] for d in value_expectations_expert[alb]]))/np.std([d[alb] for d in value_expectations_expert[alb]]) for data_rep in value_expectations_expert[target_vs_function]]
-            #learned_data = [(np.mean(data_rep[alb])-np.mean([d[alb] for d in value_expectations_expert[alb]]))/np.std([d[alb] for d in value_expectations_expert[alb]]) for data_rep in value_expectations_learned[target_vs_function]]
-            expert_data = [data_rep[alb] for data_rep in value_expectations_expert[target_vs_function]] 
-            learned_data = [data_rep[alb] for data_rep in value_expectations_learned[target_vs_function]]
-            
-            expert_values.append(f'{np.mean(expert_data):.3f} ± {np.std(expert_data):.3f}')
-            learned_values.append(f'{np.mean(learned_data):.3f} ± {np.std(learned_data):.3f}')
-        
-        expected_alignments_row = [str(target_vs_function), *expert_values, *learned_values]
+            # expert_data = [(np.mean(data_rep[alb])-np.mean([d[alb] for d in value_expectations_expert[alb]]))/np.std([d[alb] for d in value_expectations_expert[alb]]) for data_rep in value_expectations_expert[target_vs_function]]
+            # learned_data = [(np.mean(data_rep[alb])-np.mean([d[alb] for d in value_expectations_expert[alb]]))/np.std([d[alb] for d in value_expectations_expert[alb]]) for data_rep in value_expectations_learned[target_vs_function]]
+            expert_data = [data_rep[alb]
+                           for data_rep in value_expectations_expert[target_vs_function]]
+            learned_data = [data_rep[alb]
+                            for data_rep in value_expectations_learned[target_vs_function]]
+
+            expert_values.append(
+                f'{np.mean(expert_data):.3f} ± {np.std(expert_data):.3f}')
+            learned_values.append(
+                f'{np.mean(learned_data):.3f} ± {np.std(learned_data):.3f}')
+
+        expected_alignments_row = [
+            str(target_vs_function), *expert_values, *learned_values]
         if target_align_funcs_to_learned_align_funcs:
-            expected_alignments_row.insert(1, str(learned_vs))  # Insert "Learned VS" as the second column
+            # Insert "Learned VS" as the second column
+            expected_alignments_row.insert(1, str(learned_vs))
         expected_alignments_rows.append(expected_alignments_row)
-        
 
     # Write metrics table to CSV
     with open(csv_file_1, 'w', newline='') as f:
@@ -1079,9 +1163,10 @@ def save_stats_to_csv_and_latex(metric1_means, metric1_stds, metric2_means, metr
         header = ['VS Function']
         if target_align_funcs_to_learned_align_funcs:
             header.append('Learned VS')
-        #header.extend(['F1 (random)', 'F1 (expert)', 'JSD (random)', 'JSD (expert)'])
-        header.extend(['Acc (random)', 'Acc (expert)', 'JSD (random)', 'JSD (expert)', '#Reins (random)', '#Reins (expert)'])
-        
+        # header.extend(['F1 (random)', 'F1 (expert)', 'JSD (random)', 'JSD (expert)'])
+        header.extend(['Acc (random)', 'Acc (expert)', 'JSD (random)',
+                      'JSD (expert)', '#Reins (random)', '#Reins (expert)'])
+
         writer.writerow(header)
         writer.writerows(metrics_rows)
 
@@ -1091,8 +1176,10 @@ def save_stats_to_csv_and_latex(metric1_means, metric1_stds, metric2_means, metr
         header = ['VS Function']
         if target_align_funcs_to_learned_align_funcs:
             header.append('Learned VS')
-        header.extend([f'Expert Policy Avg. \A_{{{v}}}' for v in values_names.values()])
-        header.extend([f'Learned Policy Avg. \A_{{{v}}}' for v in values_names.values()])
+        header.extend(
+            [f'Expert Policy Avg. \A_{{{v}}}' for v in values_names.values()])
+        header.extend(
+            [f'Learned Policy Avg. \A_{{{v}}}' for v in values_names.values()])
         writer.writerow(header)
         writer.writerows(expected_alignments_rows)
 
@@ -1110,7 +1197,7 @@ def save_stats_to_csv_and_latex(metric1_means, metric1_stds, metric2_means, metr
         header_latex = 'VS Function'
         if target_align_funcs_to_learned_align_funcs:
             header_latex += ' & Learned VS'
-        #header_latex += ' & F1 (random) & F1 (expert) & JSD (random) & JSD (expert)'
+        # header_latex += ' & F1 (random) & F1 (expert) & JSD (random) & JSD (expert)'
         header_latex += ' & Acc (random) & Acc (expert) & JSD (random) & JSD (expert) & #Reins (random) & #Reins (expert)'
         f.write(header_latex + ' \\\\\n')
         f.write('\\hline\n')
@@ -1134,8 +1221,10 @@ def save_stats_to_csv_and_latex(metric1_means, metric1_stds, metric2_means, metr
         header_latex = 'VS Function'
         if target_align_funcs_to_learned_align_funcs:
             header_latex += ' & Learned VS'
-        header_latex += ''.join([f' & Expert Policy Avg. $\\A_{{{v}}}$' for v in values_names.values()])
-        header_latex += ''.join([f' & Learned Policy Avg. $\\A_{{{v}}}$' for v in values_names.values()])
+        header_latex += ''.join(
+            [f' & Expert Policy Avg. $\\A_{{{v}}}$' for v in values_names.values()])
+        header_latex += ''.join(
+            [f' & Learned Policy Avg. $\\A_{{{v}}}$' for v in values_names.values()])
         f.write(header_latex + ' \\\\\n')
         f.write('\\hline\n')
         for row in expected_alignments_rows:
@@ -1144,8 +1233,8 @@ def save_stats_to_csv_and_latex(metric1_means, metric1_stds, metric2_means, metr
         f.write('\\end{tabular}\n')
         f.write('\\end{table}\n')
 
-    print(f"Results saved in CSV: {csv_file_1}, {csv_file_2} and LaTeX: {latex_file_1}, {latex_file_2}")
-
+    print(
+        f"Results saved in CSV: {csv_file_1}, {csv_file_2} and LaTeX: {latex_file_1}, {latex_file_2}")
 
 
 def plot_metrics_for_experiments(historic_assignments_per_lre: Dict[str, Dict[str, List]], experiment_names: List[str], run_dir: str, maximum_conciseness_per_ename: Dict[str, ClusterAssignmentMemory], n_iterations_real=500, fontsize=16):
@@ -1158,7 +1247,7 @@ def plot_metrics_for_experiments(historic_assignments_per_lre: Dict[str, Dict[st
         "Conciseness": "--",
         "Representativity": "-.",
         "Ray-Turi": "-x",
-        #"Ray-Turi Index": "-x",
+        # "Ray-Turi Index": "-x",
         "Grounding Coherence": "-o",
     }
 
@@ -1169,7 +1258,7 @@ def plot_metrics_for_experiments(historic_assignments_per_lre: Dict[str, Dict[st
         "Conciseness": [],
         "Representativity": [],
         "Ray-Turi": [],
-        #"Ray-Turi Index": [],
+        # "Ray-Turi Index": [],
         "Grounding Coherence": [],
     }
 
@@ -1200,18 +1289,21 @@ def plot_metrics_for_experiments(historic_assignments_per_lre: Dict[str, Dict[st
         historic_assignments = historic_assignments_per_lre[ename]
 
         metrics['Ray-Turi'].append(np.array(historic_assignments['ray_turi']))
-        #metrics['Ray-Turi Index'].append(combined_score_ename_rt)
-        metrics['Conciseness'].append(np.array(historic_assignments['conciseness']))
-        metrics['Representativity'].append(np.array(historic_assignments['representativity']))
-        metrics['Grounding Coherence'].append(np.array(historic_assignments['coherence']))
+        # metrics['Ray-Turi Index'].append(combined_score_ename_rt)
+        metrics['Conciseness'].append(
+            np.array(historic_assignments['conciseness']))
+        metrics['Representativity'].append(
+            np.array(historic_assignments['representativity']))
+        metrics['Grounding Coherence'].append(
+            np.array(historic_assignments['coherence']))
 
     for idx_color, (metric_name, values) in enumerate(metrics.items()):
         # Divide the x-axis into 10 evenly spaced points
-        print("VALUES???????????", values)
         # Pad arrays to the maximum length if not homogeneous
         max_len = max([len(arr) for arr in values])
         values_padded = [
-            np.pad(arr, (0, max_len - len(arr)), mode='edge') if len(arr) > 0 else np.zeros(max_len)
+            np.pad(arr, (0, max_len - len(arr)),
+                   mode='edge') if len(arr) > 0 else np.zeros(max_len)
             for arr in values
         ]
         values = np.array(values_padded)
@@ -1222,12 +1314,13 @@ def plot_metrics_for_experiments(historic_assignments_per_lre: Dict[str, Dict[st
         x = [i + 1 for i in x_indices]
 
         mean_values = np.mean(np.array(values), axis=0)[x_indices]
-        std_error = np.std(np.array(values), axis=0)[x_indices] / np.sqrt(len(experiment_names))
+        std_error = np.std(np.array(values), axis=0)[
+            x_indices] / np.sqrt(len(experiment_names))
 
         plt.plot(x, mean_values, line_styles[metric_name], color=colors[idx_color % len(colors)],
-             alpha=0.5, label=f"{metric_name}")
+                 alpha=0.5, label=f"{metric_name}")
         plt.fill_between(x, mean_values - std_error, mean_values + std_error, color=colors[idx_color % len(colors)],
-                 alpha=0.2)
+                         alpha=0.2)
 
     plt.xlabel("Iteration", fontsize=fontsize)
     plt.xticks(x, labels=[int(xi/len(x)*len(historic_assignments))
@@ -1250,7 +1343,6 @@ def plot_metrics_for_experiments(historic_assignments_per_lre: Dict[str, Dict[st
 
 def plot_di_scores_for_experiments(run_dir, scores, repres, conc, n_clusters, fontsize=16):
 
-
     sorted_keys = sorted(
         list(scores.keys()))
     sorted_scores = {key: scores[key] for key in sorted_keys}
@@ -1258,7 +1350,8 @@ def plot_di_scores_for_experiments(run_dir, scores, repres, conc, n_clusters, fo
     sorted_conc = {key: conc[key] for key in sorted_keys}
     sorted_n_clusters = {key: n_clusters[key] for key in sorted_keys}
     # Prepare data for plotting
-    x_labels = [str(k) + f"\nLearned:\n{[f"{Li} ({((ni/sum(sorted_n_clusters[k].values()))*100.0):.1f}%)\n" for Li, ni in sorted_n_clusters[k].items()]}" for k in sorted_scores.keys()]
+    x_labels = [str(k) + f"\nLearned:\n{[f"{Li} ({((ni/sum(sorted_n_clusters[k].values()))*100.0):.1f}%)\n" for Li,
+                                         ni in sorted_n_clusters[k].items()]}" for k in sorted_scores.keys()]
 
     x_positions = range(len(x_labels))
     # Plot the scores
@@ -1273,22 +1366,23 @@ def plot_di_scores_for_experiments(run_dir, scores, repres, conc, n_clusters, fo
              for values in sorted_scores.values()]
     errors = [np.std(np.asarray(values)/max_score)/np.sqrt(len(values))
               if len(values) > 1 else 0 for values in sorted_scores.values()]
-    
+
     plt.errorbar(x_positions, means, yerr=errors, fmt='o-',
                  capsize=5, label="Ray-Turi Index", color='green', alpha=0.7)
-    
-    sorted_scores_rt = {key: [1.0/score for score in values] for key, values in sorted_scores.items()}
+
+    sorted_scores_rt = {key: [1.0/score for score in values]
+                        for key, values in sorted_scores.items()}
     max_score_rt = 0
     for values in sorted_scores_rt.values():
         max_score_rt = max(max_score_rt, max(values))
     if isinstance(max_score_rt, torch.Tensor):
         max_score_rt = float(max_score_rt.detach().cpu().numpy())
-    #print(sorted_scores_rt, max_score_rt)
+    # print(sorted_scores_rt, max_score_rt)
     means = [np.mean(np.array(values)/max_score_rt)
              for values in sorted_scores_rt.values()]
     errors = [np.std(np.array(values)/max_score_rt)/np.sqrt(len(values))
               if len(values) > 1 else 0 for values in sorted_scores_rt.values()]
-    #plt.errorbar(x_positions, means, yerr=errors, fmt='o-',
+    # plt.errorbar(x_positions, means, yerr=errors, fmt='o-',
     #             capsize=5, label="Ray-Turi Index", color='green', alpha=0.7)
 
     means = [np.mean(values) for values in sorted_repres.values()]
@@ -1307,7 +1401,8 @@ def plot_di_scores_for_experiments(run_dir, scores, repres, conc, n_clusters, fo
                fontsize=fontsize)  # Increased font size by 75%
     plt.xlabel("L / Number of Clusters",
                fontsize=fontsize)  # Increased font size by 75%
-    plt.ylabel("Cluster Score", fontsize=fontsize)  # Increased font size by 75%
+    # Increased font size by 75%
+    plt.ylabel("Cluster Score", fontsize=fontsize)
     plt.ylim(0, 1.05)
     plt.yticks(np.arange(0, 1.05, 0.1),
                fontsize=fontsize)  # Increased font size by 75%
@@ -1325,7 +1420,6 @@ def plot_di_scores_for_experiments(run_dir, scores, repres, conc, n_clusters, fo
     plt.close()
 
     print(f"Saved scores plot to {plot_path}")
-
 
 
 def generate_assignment_tables(assignment_identifier_to_assignment: Dict[str, ClusterAssignment] | Dict[str, List[ClusterAssignment]], experiment_name, output_columns, output_dir="test_results", values_names=None, label='train_set'):
@@ -1392,7 +1486,7 @@ def generate_assignment_tables(assignment_identifier_to_assignment: Dict[str, Cl
                         assignment.L
                     ) if assignment.L > 1 else '-' for assignment, cidx in zip(assignments, corresponding_cidx)
                 ]
-                print(conciseness_values, assignment.L)
+                # print(conciseness_values, assignment.L)
                 row["Conciseness"] = f"{np.mean(conciseness_values):.3f} ± {np.std(conciseness_values):.3f}" if assignments[0].L > 1 else '-'
             if output_columns.get("combined_score", False):
                 representativities = np.array([
@@ -1485,10 +1579,8 @@ def generate_assignment_tables(assignment_identifier_to_assignment: Dict[str, Cl
         print(
             f"Saved {position} assignment table to {csv_path} and {latex_path}")
 
-from scipy import stats
-import pandas as pd
 
-def generate_assignment_tables_v2(table_data: dict, Lmax_to_enames: dict, values_short_names: list, run_dir: str, label: str) :
+def generate_assignment_tables_v2(table_data: dict, Lmax_to_enames: dict, values_short_names: list, run_dir: str, label: str):
     """ DATA IS LIKE: 
     train_data_table[ename][best.Lmax] = {
                 "L": best.L,
@@ -1510,16 +1602,17 @@ def generate_assignment_tables_v2(table_data: dict, Lmax_to_enames: dict, values
             "grounding_coherence": True,
         }
             """
-    
+
     example_ename = list(table_data.keys())[0]
-    n_rows = len(Lmax_to_enames) # 1 row per Lmax
+    n_rows = len(Lmax_to_enames)  # 1 row per Lmax
     Lmaxes = list(Lmax_to_enames.keys())
     table = []
     for row_index in range(n_rows):
         row = {}
         Lmax_now = Lmaxes[row_index]
-        data_for_row = [table_data[ename][Lmax_now] for ename in Lmax_to_enames[Lmax_now]]
-        print("DR", data_for_row)
+        data_for_row = [table_data[ename][Lmax_now]
+                        for ename in Lmax_to_enames[Lmax_now]]
+        # print("DR", data_for_row)
         row["Lmax"] = Lmax_now
         Lslearned = [data_for_row[i]["L"] for i in range(len(data_for_row))]
         # Compute mode and frequency for Lslearned
@@ -1531,10 +1624,11 @@ def generate_assignment_tables_v2(table_data: dict, Lmax_to_enames: dict, values
             freq = count / len(Lslearned) * 100.0
             row["L"] += f", {val} ({freq:.1f}%)"
         row["Repr"] = f"{np.mean([data_for_row[i]['Repr'] for i in range(len(data_for_row))]):.3f} ± {np.std([data_for_row[i]['Repr'] for i in range(len(data_for_row))]):.3f}"
-        row["Conc"] = f"{np.mean([data_for_row[i]['Conc'] for i in range(len(data_for_row))]):.3f} ± {np.std([data_for_row[i]['Conc'] for i in range(len(data_for_row))]):.3f}"
-        row["RT"] = f"{np.mean([data_for_row[i]['RT'] for i in range(len(data_for_row))]):.3f} ± {np.std([data_for_row[i]['RT'] for i in range(len(data_for_row))]):.3f}"
+        row["Conc"] = f"{np.mean([data_for_row[i]['Conc'] for i in range(len(data_for_row)) if data_for_row[i]['L'] > 1]):.3f} ± {np.std([data_for_row[i]['Conc'] for i in range(len(data_for_row)) if data_for_row[i]['Conc'] is not None and data_for_row[i]['L'] > 1]):.3f}"
+        row["RT"] = f"{np.mean([data_for_row[i]['RT'] for i in range(len(data_for_row)) if data_for_row[i]['L'] > 1]):.3f} ± {np.std([data_for_row[i]['RT'] for i in range(len(data_for_row)) if data_for_row[i]['L'] > 1]):.3f}"
         for v in values_short_names:
-            row[f"Chr {v}"] = f"{np.mean([data_for_row[i][f'Chr {v}'] for i in range(len(data_for_row))]):.3f} ± {np.std([data_for_row[i][f'Chr {v}'] for i in range(len(data_for_row))]):.3f}"
+            row[f"Chr {v}"] = f"{np.mean([data_for_row[i][f'Chr {v}'] for i in range(len(data_for_row))]):.3f} ± {
+                np.std([data_for_row[i][f'Chr {v}'] for i in range(len(data_for_row))]):.3f}"
         table.append(row)
     # Convert to DataFrame
     table.sort(key=lambda x: x["Lmax"], reverse=True)
@@ -1561,342 +1655,358 @@ def generate_assignment_tables_v2(table_data: dict, Lmax_to_enames: dict, values
     print(
         f"Saved assignment table to {csv_path} and {latex_path}")
 
+
 def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_eval_env, run_dir: str, discount, environment_data, expert_policy: MOBaselinesAgent, known_pareto_front=None, plot_di_scores=False, plot_returns=True, num_eval_weights_for_front=20, num_eval_episodes_for_front=20, fontsize=12, sampling_trajs_per_agent=100, sampling_epsilon=0.05, ref_point=None, show=False):
 
-        values_names = environment_data['values_names']
-        values_short_names = environment_data['values_short_names']
-        
-        vsl_algo_per_ename = dict()
-        best_per_ename = {}
-        test_best_per_ename = {}
-        enames_per_l = {}
-        historic_per_ename = {}
-        maximum_conciseness_per_ename = {}
-        train_data_table = {}
-        test_data_table = {}
+    values_names = environment_data['values_names']
+    values_short_names = environment_data['values_short_names']
+
+    vsl_algo_per_ename = dict()
+    best_per_ename = {}
+    test_best_per_ename = {}
+    enames_per_l = {}
+    historic_per_ename = {}
+    maximum_conciseness_per_ename = {}
+    train_data_table = {}
+    test_data_table = {}
+    n_clusters = {}
+
+    for ename in enames_all:
+        best_assignments_list, historic, agent, final_global_step, config = PVSL.load_state(
+            ename=ename, agent_name=vsl_algo.mobaselines_agent.name, ref_env=ref_env, ref_eval_env=ref_eval_env)
+
+        if best_assignments_list is not None:
+            best, _ = best_assignments_list.get_best_assignment(
+                lexicographic_vs_first=False)
+            assert best.is_equivalent_assignment(historic[-1], exhaustive=True)
+
+            best_assignments_list: ClusterAssignmentMemory
+            best_assignments_list.update_maximum_conciseness(best)
+
+            maximum_conciseness_per_ename[ename] = best_assignments_list.maximum_conciseness_vs
+        else:
+            best = historic[-1]
+            print(
+                f"WARNING: No best assignments list found, there has been an error during training, at step {len(historic)} only the last assignment is used for {ename}")
+            maximum_conciseness_per_ename[ename] = float('-inf')
+            best_chr = 0.0
+            for h in historic:
+                if min(h.coherence()) > best_chr:
+                    best_chr = min(h.coherence())
+                    maximum_conciseness_per_ename[ename] = max(
+                        h.conciseness_vs(), maximum_conciseness_per_ename[ename])
+
+        match = re.search(r"_L(\d+)", ename)
+
+        if match:
+            l_num = int(match.group(1))
+        else:
+            l_num = 0
+
+        if l_num == 0:
+            l_num = best.Lmax
+        if algo_name != 'pbmorl':
+            print(list(best.value_systems), )
+            assert l_num == best.Lmax, f"Expected Lmax {l_num}, but got {best.Lmax} for {ename}"
+        l_num = best.Lmax  # Use the real Lmax
+        if l_num not in enames_per_l.keys():
+            enames_per_l[l_num] = []
+        enames_per_l[l_num].append(ename)
+        print(
+            f"Evaluating {ename} with L={l_num} and {len(historic)} historic assignments")
+        vsl_algo_ename: PVSL = PVSL.load_from_state(
+            best_assignments_list, historic, agent, final_global_step, config)
+        vsl_algo_ename.mobaselines_agent.set_envs(
+            env=ref_env, eval_env=ref_eval_env)
+        vsl_algo_ename.current_assignment.certify_cluster_assignment_consistency()
+
+        assert best.Lmax == vsl_algo_ename.Lmax, f"Expected Lmax {vsl_algo_ename.Lmax}, but got {best.Lmax} for {ename}"
+        if algo_name != 'pbmorl':
+            assert vsl_algo_ename.Lmax == l_num, f"Expected Lmax {l_num}, but got {vsl_algo_ename.Lmax} for {ename}"
+        vsl_algo_per_ename[ename] = vsl_algo_ename
+        best_per_ename[ename] = best
+        assert best.is_equivalent_assignment(
+            vsl_algo_ename.current_assignment, exhaustive=True), f"Best assignment {best} is not equivalent to current assignment {vsl_algo_ename.current_assignment} for {ename}"
+        # Save a dict with conciseness, Ray-Turi index, representativity_vs, and coherence for each member of the historic
+        historic_per_ename[ename] = {
+            "conciseness": [assignment.conciseness_vs() for assignment in historic],
+            "ray_turi": [assignment.combined_cluster_score_vs() for assignment in historic],
+            "representativity": [assignment.representativity_vs(aggr=np.mean) for assignment in historic],
+            "coherence": [np.mean(assignment.coherence()) for assignment in historic]
+        }
+
+        del historic
+        best_t: ClusterAssignment = best.copy()
+        best_t.recalculate_discordances(
+            test_dataset, vsl_algo_ename.loss.model_indifference_tolerance)
+        best_t.certify_cluster_assignment_consistency()
+        test_best_per_ename[ename] = best_t
+
+        if ename not in train_data_table.keys():
+            train_data_table[ename] = {}
+            test_data_table[ename] = {}
+        if best.Lmax not in train_data_table[ename].keys():
+            train_data_table[ename][best.Lmax] = []
+            test_data_table[ename][best.Lmax] = []
+
+        train_data_table[ename][best.Lmax] = {
+            "L": best.L,
+            "VS": best.value_systems,
+            "Repr": best.representativity_vs(aggr=np.mean),
+            "Conc": best.conciseness_vs(),
+            "RT": best.combined_cluster_score_vs(conciseness_if_L_is_1=maximum_conciseness_per_ename[ename]),
+            **{f"Chr {values_short_names[i]}": best.coherence()[i] for i in range(len(values_names))},
+        }
+        test_data_table[ename][best.Lmax] = {
+            "L": best_t.L,
+            "VS": best_t.value_systems,
+            "Repr": best_t.representativity_vs(aggr=np.mean),
+            "Conc": best_t.conciseness_vs(),
+            "RT": best_t.combined_cluster_score_vs(conciseness_if_L_is_1=maximum_conciseness_per_ename[ename]),
+            **{f"Chr {values_short_names[i]}": best_t.coherence()[i] for i in range(len(values_names))},
+        }
+    generate_assignment_tables_v2(test_data_table, Lmax_to_enames=enames_per_l,
+                                  values_short_names=values_short_names, run_dir=run_dir, label='test')
+    generate_assignment_tables_v2(train_data_table, Lmax_to_enames=enames_per_l,
+                                  values_short_names=values_short_names, run_dir=run_dir, label='train')
+
+    if plot_di_scores:
+        scores = {}
+        repres = {}
+        conc = {}
         n_clusters = {}
-        
-        for ename in enames_all:
-            best_assignments_list, historic, agent, final_global_step, config =  PVSL.load_state(ename=ename, agent_name=vsl_algo.mobaselines_agent.name, ref_env=ref_env, ref_eval_env=ref_eval_env)
+        max_conciseness = float('-inf')
+        for ename_clean in enames_all:
+            best = best_per_ename[ename_clean]
+            max_conciseness = max(
+                max_conciseness, maximum_conciseness_per_ename[ename_clean])
+            assert max_conciseness < 1, f"Max conciseness is {max_conciseness} for {ename_clean}"
 
-            if best_assignments_list is not None:
-                best,_ = best_assignments_list.get_best_assignment(lexicographic_vs_first=False)
-                assert best.is_equivalent_assignment(historic[-1], exhaustive=True)
-
-                best_assignments_list: ClusterAssignmentMemory
-                best_assignments_list.update_maximum_conciseness(best)
-
-                maximum_conciseness_per_ename[ename] = best_assignments_list.maximum_conciseness_vs
-            else:
-                best = historic[-1]
-                print(f"WARNING: No best assignments list found, there has been an error during training, at step {len(historic)} only the last assignment is used for {ename}")
-                maximum_conciseness_per_ename[ename] = float('-inf')
-                best_chr = 0.0
-                for h in historic:
-                    if min(h.coherence()) > best_chr:
-                        best_chr= min(h.coherence())
-                        maximum_conciseness_per_ename[ename] = max(h.conciseness_vs(), maximum_conciseness_per_ename[ename])
-
-            match = re.search(r"_L(\d+)", ename)
-            
-            if match:
-                l_num = int(match.group(1))
-            else:
-                l_num = 0
-
-            if l_num==0:
-                l_num = best.Lmax
-            if algo_name != 'pbmorl':
-                print(list(best.value_systems), )
-                assert l_num == best.Lmax, f"Expected Lmax {l_num}, but got {best.Lmax} for {ename}"
-            l_num = best.Lmax # Use the real Lmax
-            if l_num not in enames_per_l.keys():
-                enames_per_l[l_num] = []
-            enames_per_l[l_num].append(ename)
-            print(f"Evaluating {ename} with L={l_num} and {len(historic)} historic assignments")
-            vsl_algo_ename: PVSL = PVSL.load_from_state(best_assignments_list, historic, agent, final_global_step, config)
-            vsl_algo_ename.mobaselines_agent.set_envs(env=ref_env, eval_env=ref_eval_env)
-            vsl_algo_ename.current_assignment.certify_cluster_assignment_consistency()
-
-            assert best.Lmax == vsl_algo_ename.Lmax, f"Expected Lmax {vsl_algo_ename.Lmax}, but got {best.Lmax} for {ename}"
-            if algo_name != 'pbmorl': assert vsl_algo_ename.Lmax == l_num, f"Expected Lmax {l_num}, but got {vsl_algo_ename.Lmax} for {ename}"
-            vsl_algo_per_ename[ename] = vsl_algo_ename
-            best_per_ename[ename] = best
-            assert best.is_equivalent_assignment(vsl_algo_ename.current_assignment, exhaustive=True), f"Best assignment {best} is not equivalent to current assignment {vsl_algo_ename.current_assignment} for {ename}"
-            # Save a dict with conciseness, Ray-Turi index, representativity_vs, and coherence for each member of the historic
-            historic_per_ename[ename] = {
-                    "conciseness": [assignment.conciseness_vs() for assignment in historic],
-                    "ray_turi": [assignment.combined_cluster_score_vs() for assignment in historic],
-                    "representativity": [assignment.representativity_vs(aggr=np.mean) for assignment in historic],
-                    "coherence": [np.mean(assignment.coherence()) for assignment in historic]
-                }
-                
-            
-            del historic
-            best_t: ClusterAssignment = best.copy()
-            best_t.recalculate_discordances(test_dataset, vsl_algo_ename.loss.model_indifference_tolerance)
-            best_t.certify_cluster_assignment_consistency()
-            test_best_per_ename[ename]=best_t
-
-            if ename not in train_data_table.keys():
-                train_data_table[ename] = {}
-                test_data_table[ename] = {}
-            if best.Lmax not in train_data_table[ename].keys():
-                train_data_table[ename][best.Lmax] = []
-                test_data_table[ename][best.Lmax] = []
-
-            train_data_table[ename][best.Lmax] = {
-                "L": best.L,
-                "VS": best.value_systems,
-                "Repr": best.representativity_vs(aggr=np.mean),
-                "Conc": best.conciseness_vs(),
-                "RT": best.combined_cluster_score_vs(conciseness_if_L_is_1=maximum_conciseness_per_ename[ename]),
-                **{f"Chr {values_short_names[i]}": best.coherence()[i] for i in range(len(values_names))},
+        for best in best_per_ename.values():
+            key = best.Lmax
+            best: ClusterAssignment
+            if key not in scores.keys():
+                scores[key] = []
+                repres[key] = []
+                conc[key] = []
+                n_clusters[key] = []
+            scores[key].append(best.combined_cluster_score_vs(
+                conciseness_if_L_is_1=max_conciseness if max_conciseness > 0 else None))
+            repres[key].append(best.representativity_vs(aggr=np.min))
+            conc[key].append(best.conciseness_vs() if best.L >
+                             1 else max_conciseness)
+            n_clusters[key].append(best.L)
+        for key in scores.keys():
+            n_clusters[key] = {
+                Li: n_clusters[key][i] for i, Li in enumerate(sorted(n_clusters[key]))
             }
-            test_data_table[ename][best.Lmax] = {
-                "L": best_t.L,
-                "VS": best_t.value_systems,
-                "Repr": best_t.representativity_vs(aggr=np.mean),
-                "Conc": best_t.conciseness_vs(),
-                "RT": best_t.combined_cluster_score_vs(conciseness_if_L_is_1=maximum_conciseness_per_ename[ename]),
-                **{f"Chr {values_short_names[i]}": best_t.coherence()[i] for i in range(len(values_names))},
-            }
-        generate_assignment_tables_v2(test_data_table, Lmax_to_enames=enames_per_l, values_short_names=values_short_names, run_dir=run_dir, label='test')
-        generate_assignment_tables_v2(train_data_table, Lmax_to_enames=enames_per_l, values_short_names=values_short_names, run_dir=run_dir, label='train')
 
-        if plot_di_scores:
-            scores = {}
-            repres = {}
-            conc = {}
-            n_clusters = {}
-            max_conciseness = float('-inf')
-            for ename_clean in enames_all:
-                best = best_per_ename[ename_clean]
-                max_conciseness = max(max_conciseness, maximum_conciseness_per_ename[ename_clean])
-                assert max_conciseness < 1, f"Max conciseness is {max_conciseness} for {ename_clean}"
-                
-                
-            
+        plot_di_scores_for_experiments(
+            run_dir, scores, repres, conc, n_clusters=n_clusters, fontsize=fontsize)
 
-            for best in best_per_ename.values():
-                key = best.Lmax
-                best: ClusterAssignment
-                if key not in scores.keys():
-                    scores[key] = []
-                    repres[key] = []
-                    conc[key] = []
-                    n_clusters[key] = []
-                scores[key].append(best.combined_cluster_score_vs( conciseness_if_L_is_1=max_conciseness if max_conciseness > 0 else None))
-                repres[key].append(best.representativity_vs(aggr=np.min))
-                conc[key].append(best.conciseness_vs() if best.L >
-                                1 else max_conciseness)
-                n_clusters[key].append(best.L)
-            for key in scores.keys():
-                n_clusters[key] = {
-                    Li: n_clusters[key][i] for i, Li in enumerate(sorted(n_clusters[key]))
-                }
+    for l_num, enames in enames_per_l.items():
+        metrics_L = []
+        metrics_L_clust = []
+        df_vs_all_seeds = []
+        if plot_returns:
+            for ename in enames:
+                vsl_algo = vsl_algo_per_ename[ename]
+                best_gr_then_vs_assignment = best_per_ename[ename]
+                if '_seed' in ename:
+                    seed_ename = ename.split('_seed')[-1]
+                    assert int(
+                        seed_ename) >= 0, f"Expected seed_ename to be a non-negative integer, but got {seed_ename} for {ename}"
+                    seed_ename = '_' + str(seed_ename)
+                else:
+                    seed_ename = "_unk"
+                trajs_per_agent, trajs_per_cluster = generate_expert_and_learned_trajs(
+                    vsl_algo=vsl_algo_per_ename[ename],
+                    assignment_test=test_best_per_ename[ename], expert_policy=expert_policy,
+                    eval_env=ref_eval_env, agent_data=test_dataset.agent_data,
+                    epsilon=sampling_epsilon, n_trajs_per_agent=sampling_trajs_per_agent)
 
+                plot_return_pairs(trajs_per_agent, trajs_per_cluster, values_names=values_names, cluster_assignment=test_best_per_ename[ename], cluster_colors=vsl_algo.get_cluster_colors('matplotlib'),
+                                  run_dir=run_dir, agent_data=test_dataset.agent_data, namefig=os.path.join("return_pairs_all_clusters", "seed" + seed_ename), show=show, fontsize=fontsize)
 
+                vsl_algo_per_ename[ename].mobaselines_agent.set_envs(
+                    env=ref_eval_env, eval_env=ref_eval_env)
+                pareto_front_and_weights, unfiltered_front_and_weights = vsl_algo_per_ename[ename].mobaselines_agent.pareto_front(num_eval_weights_for_front=num_eval_weights_for_front,
+                                                                                                                                  num_eval_episodes_for_front=num_eval_episodes_for_front,
+                                                                                                                                  discount=discount, use_weights=vsl_algo_per_ename[ename].get_value_systems())
 
-            plot_di_scores_for_experiments(run_dir, scores, repres, conc, n_clusters=n_clusters, fontsize=fontsize)
+                print("Solution set:", unfiltered_front_and_weights)
+                print("LEARNED PARETO FRONT:", pareto_front_and_weights)
+                print("REAL PARETO FRONT:", known_pareto_front)
+                ppath = os.path.join(run_dir, f'learned_pareto_front')
+                plearned = os.path.join(run_dir, f'learned_solutions_front')
+                os.makedirs(ppath, exist_ok=True)
+                os.makedirs(plearned, exist_ok=True)
+                best_gr_then_vs_assignment: ClusterAssignment
+                weights_in_pareto_front = {transform_weights_to_tuple(t): vals for t, vals in zip(
+                    unfiltered_front_and_weights[1], unfiltered_front_and_weights[0]) if any([np.allclose(vals, p) for p in pareto_front_and_weights[0]])}
+                clusters_not_in_pf_idx = [u for u, v in enumerate(unfiltered_front_and_weights[1]) if (transform_weights_to_tuple(
+                    v) not in weights_in_pareto_front.keys()) and transform_weights_to_tuple(v) in best_gr_then_vs_assignment.value_systems_active]
+                clusters_not_in_pf = (
+                    unfiltered_front_and_weights[0][clusters_not_in_pf_idx], unfiltered_front_and_weights[1][clusters_not_in_pf_idx])
+                metrics_ename, metrics_ename_clust = visualize_pareto_front(title="Learned Pareto Front Comparison",
+                                                                            weights_in_pareto_front=weights_in_pareto_front,
+                                                                            learned_front_data=pareto_front_and_weights,
+                                                                            clusters_not_in_pf=clusters_not_in_pf,
+                                                                            known_front_data=known_pareto_front,
+                                                                            with_clusters=best_gr_then_vs_assignment,
+                                                                            objective_names=values_names,
+                                                                            cluster_colors=vsl_algo.get_cluster_colors('matplotlib'), fontsize=fontsize,
+                                                                            save_path=os.path.join(ppath, "seed" + seed_ename), show=show, calculate_metrics=True,
+                                                                            ref_point=ref_point)
+                visualize_pareto_front(title="Learned Solutions",
+                                       learned_front_data=unfiltered_front_and_weights,
+                                       known_front_data=known_pareto_front,
+                                       with_clusters=best_gr_then_vs_assignment,
+                                       objective_names=values_names,
+                                       cluster_colors=vsl_algo.get_cluster_colors('matplotlib'), fontsize=fontsize,
+                                       save_path=os.path.join(plearned, "seed" + seed_ename), ref_point=ref_point, show=show, calculate_metrics=False)
 
-        
-        
-        
-        for l_num, enames in enames_per_l.items():
-            metrics_L = []
-            metrics_L_clust = []
-            df_vs_all_seeds = []
-            if plot_returns:
-                for ename in enames:
-                    vsl_algo = vsl_algo_per_ename[ename]
-                    best_gr_then_vs_assignment = best_per_ename[ename]
-                    if '_seed' in ename:
-                        seed_ename = ename.split('_seed')[-1]
-                        assert int(seed_ename) >= 0, f"Expected seed_ename to be a non-negative integer, but got {seed_ename} for {ename}"
-                        seed_ename = '_' + str(seed_ename)
-                    else:
-                        seed_ename = "_unk"
-                    trajs_per_agent, trajs_per_cluster = generate_expert_and_learned_trajs(
-                        vsl_algo=vsl_algo_per_ename[ename], 
-                        assignment_test=test_best_per_ename[ename], expert_policy=expert_policy,
-                        eval_env=ref_eval_env, agent_data=test_dataset.agent_data, 
-                        epsilon=sampling_epsilon, n_trajs_per_agent=sampling_trajs_per_agent)
-                
-                        
-                    plot_return_pairs(trajs_per_agent, trajs_per_cluster, values_names=values_names, cluster_assignment=test_best_per_ename[ename], cluster_colors=vsl_algo.get_cluster_colors('matplotlib'), 
-                                    run_dir=run_dir, agent_data=test_dataset.agent_data, namefig=os.path.join("return_pairs_all_clusters", "seed" + seed_ename), show=show, fontsize=fontsize)
+                test_dataset: VSLPreferenceDataset = test_dataset
+                target_agent_and_vs_to_learned_ones = {}
+                target_agent_and_vs_to_learned_pareto = {}
+                for ag, agdata in test_dataset.agent_data.items():
+                    cluster_id_ag = best_gr_then_vs_assignment.agent_to_vs_cluster_assignments[
+                        ag]
+                    weight_learned = transform_weights_to_tuple(
+                        best_gr_then_vs_assignment.get_value_system(cluster_id_ag))
 
-                    vsl_algo_per_ename[ename].mobaselines_agent.set_envs(env=ref_eval_env, eval_env=ref_eval_env)
-                    pareto_front_and_weights, unfiltered_front_and_weights = vsl_algo_per_ename[ename].mobaselines_agent.pareto_front(num_eval_weights_for_front=num_eval_weights_for_front,
-                                                                                                            num_eval_episodes_for_front=num_eval_episodes_for_front,
-                                                                                                            discount=discount, use_weights=vsl_algo_per_ename[ename].get_value_systems())
+                    list_uf = [tuple(t)
+                               for t in unfiltered_front_and_weights[1].tolist()]
 
+                    pareto_learned = unfiltered_front_and_weights[0][list_uf.index(
+                        weight_learned)]
+                    target_agent_and_vs_to_learned_pareto[(
+                        ag, transform_weights_to_tuple(agdata['value_system']))] = pareto_learned
+                    target_agent_and_vs_to_learned_ones[(
+                        ag, transform_weights_to_tuple(agdata['value_system']))] = weight_learned
+                target_al_aid, learned_al_aid = list(
+                    target_agent_and_vs_to_learned_ones.items())[0]
+                unique_al = set(
+                    [t[1] for t in target_agent_and_vs_to_learned_ones.keys()])
 
-                    print("Solution set:", unfiltered_front_and_weights)
-                    print("LEARNED PARETO FRONT:", pareto_front_and_weights)
-                    print("REAL PARETO FRONT:", known_pareto_front)
-                    ppath = os.path.join(run_dir, f'learned_pareto_front')
-                    plearned = os.path.join(run_dir, f'learned_solutions_front')
-                    os.makedirs(ppath, exist_ok=True)
-                    os.makedirs(plearned, exist_ok=True)
-                    best_gr_then_vs_assignment: ClusterAssignment
-                    weights_in_pareto_front = {transform_weights_to_tuple(t): vals for t, vals in zip(unfiltered_front_and_weights[1], unfiltered_front_and_weights[0]) if any([np.allclose(vals, p) for p in pareto_front_and_weights[0]])}
-                    clusters_not_in_pf_idx = [u for u,v in enumerate(unfiltered_front_and_weights[1]) if (transform_weights_to_tuple(v) not in weights_in_pareto_front.keys()) and transform_weights_to_tuple(v) in best_gr_then_vs_assignment.value_systems_active]
-                    clusters_not_in_pf = (unfiltered_front_and_weights[0][clusters_not_in_pf_idx], unfiltered_front_and_weights[1][clusters_not_in_pf_idx])
-                    metrics_ename, metrics_ename_clust = visualize_pareto_front(title="Learned Pareto Front Comparison",
-                                                           weights_in_pareto_front=weights_in_pareto_front,
-                                        learned_front_data=pareto_front_and_weights,
-                                        clusters_not_in_pf=clusters_not_in_pf,
-                                        known_front_data=known_pareto_front,
-                                        with_clusters=best_gr_then_vs_assignment,
-                                        objective_names=values_names,
-                                        cluster_colors=vsl_algo.get_cluster_colors('matplotlib'),fontsize=fontsize,
-                                        save_path=os.path.join(ppath, "seed" + seed_ename), show=show, calculate_metrics=True,
-                                        ref_point=ref_point)
-                    visualize_pareto_front(title="Learned Solutions",
-                                        learned_front_data=unfiltered_front_and_weights,
-                                        known_front_data=known_pareto_front,
-                                        with_clusters=best_gr_then_vs_assignment,
-                                        objective_names=values_names,
-                                        cluster_colors=vsl_algo.get_cluster_colors('matplotlib'),fontsize=fontsize,
-                                        save_path=os.path.join(plearned, "seed" + seed_ename), ref_point=ref_point, show=show, calculate_metrics=False)
-
-                    test_dataset: VSLPreferenceDataset = test_dataset
-                    target_agent_and_vs_to_learned_ones = {}
-                    target_agent_and_vs_to_learned_pareto = {}
-                    for ag, agdata in test_dataset.agent_data.items():
-                        cluster_id_ag = best_gr_then_vs_assignment.agent_to_vs_cluster_assignments[ag]
-                        weight_learned = transform_weights_to_tuple(best_gr_then_vs_assignment.get_value_system(cluster_id_ag))
-                        
-                        list_uf = [tuple(t) for t in unfiltered_front_and_weights[1].tolist()]
-                        
-                        pareto_learned = unfiltered_front_and_weights[0][list_uf.index(weight_learned)]
-                        target_agent_and_vs_to_learned_pareto[(ag, transform_weights_to_tuple(agdata['value_system']))] = pareto_learned
-                        target_agent_and_vs_to_learned_ones[(ag, transform_weights_to_tuple(agdata['value_system']))] = weight_learned
-                    target_al_aid, learned_al_aid = list(target_agent_and_vs_to_learned_ones.items())[0]
-                    unique_al = set([t[1] for t in target_agent_and_vs_to_learned_ones.keys()])
-
-                    # Save table in LaTeX format: original value systems to learned ones
-                    orig_vs = []
-                    learned_vs = []
-                    agent_ids = []
-                    paretos = []
-                    for (ag, orig), learned in target_agent_and_vs_to_learned_ones.items():
-                        agent_ids.append(ag)
-                        orig_vs.append(tuple([float(f"{v:.3f}") for v in orig]))
-                        learned_vs.append(tuple([float(f"{v:.3f}") for v in learned]))
-                        paretos.append(target_agent_and_vs_to_learned_pareto[(ag,orig)])
-                    print("PARETOS", paretos)
-                    paretos = np.asarray(paretos)
-                    print(np.array(paretos).shape)
-                    df_vs = pd.DataFrame({
-                        "Agent": agent_ids,
-                        "Original Value System": orig_vs,
-                        "Learned Value System": learned_vs,
-                        "In PF": [1.0 if transform_weights_to_tuple(learned) in weights_in_pareto_front else 0.0 for learned in learned_vs],
-                        **{f"L. {values_names[i]}": paretos[:,i] for i in range(len(values_names))}
-                    })
-                    table_dir = os.path.join(run_dir, "tables", ename)
-                    os.makedirs(table_dir, exist_ok=True)
-                    latex_path = os.path.join(table_dir, f"original_vs_to_learned_vs_L{l_num}.tex")
-                    with open(latex_path, "w") as f:
-                        f.write(df_vs.to_latex(index=False, escape=False))
-                    print(f"Saved original vs to learned vs table to {latex_path}")
-                    
-                    df_vs_all_seeds.append(df_vs)
-
-                    # --- Aggregate across all seeds ---
-                    # Only do this after all seeds are processed, so outside the per-seed loop:
-                # After the for ename in enames: loop, add:
-            
-                    metrics_L.append(metrics_ename)
-                    metrics_L_clust.append(metrics_ename_clust)
-            # process the average table of original to learned value systems.
-            
-            if df_vs_all_seeds:
-                # Concatenate all dataframes
-                df_all = pd.concat(df_vs_all_seeds, ignore_index=True)
-                # Group by Agent and Original Value System
-                group_cols = ["Agent", "Original Value System"]
-                agg_dict = {}
-
-                # Aggregate learned value system: mean and std per dimension
-                def agg_learned_vs(series):
-                    arr = np.array(series.tolist())
-                    mean = np.mean(arr, axis=0)
-                    std = np.std(arr, axis=0)
-                    mean_str = tuple([float(f"{v:.3f}") for v in mean])
-                    std_str = tuple([float(f"{v:.3f}") for v in std])
-                    return f"{mean_str} ± {std_str}"
-
-                agg_dict["Learned Value System"] = agg_learned_vs
-
-                # Aggregate In PF: mean (percentage)
-                agg_dict["In PF"] = lambda x: f"{np.mean(x)*100:.1f}%"
-
-                # Aggregate each L. ... column: mean ± std
-                for i in range(len(values_names)):
-                    col = f"L. {values_names[i]}"
-                    agg_dict[col] = lambda x, col=col: f"{np.mean(x):.3f} ± {np.std(x):.3f}"
-
-                df_agg = df_all.groupby(group_cols).agg(agg_dict).reset_index()
-
-                # Save aggregated table
-                agg_table_dir = os.path.join(run_dir, "tables", f"aggregated_L{l_num}")
-                os.makedirs(agg_table_dir, exist_ok=True)
-                latex_agg_path = os.path.join(agg_table_dir, f"original_vs_to_learned_vs_aggregated_L{l_num}.tex")
-                with open(latex_agg_path, "w") as f:
-                    f.write(df_agg.to_latex(index=False, escape=False))
-                print(f"Saved aggregated original vs to learned vs table to {latex_agg_path}")
-
-            # plot di scores and MO metrics:
-            for im, metr in enumerate([metrics_L, metrics_L_clust]):
-                n_iter = max([len(v) for k,v in historic_per_ename.items() if k in enames])
-                rundir_plots = os.path.join(run_dir, 'train', 'plot_metrics')
-                # Save metrics_L to a CSV and LaTeX table
-                metrics_dir = os.path.join(run_dir, "tables", f"L{l_num}_metrics" if im == 0 else f"L{l_num}_metrics_clust")
-                os.makedirs(metrics_dir, exist_ok=True)
-                # Compute average and standard deviation for each metric in metrics_L
-                metrics_avg_std = {}
-                for key in metr[0].keys():
-                    values = [m[key] for m in metr if key in m]
-                    # Only consider numeric values
-                    values = [v for v in values if isinstance(v, (int, float, np.number))]
-                    if values:
-                        metrics_avg_std[key] = {
-                            "avg": np.mean(values),
-                            "std": np.std(values)
-                        }
-                # Prepare DataFrame for output
-                metrics_df = pd.DataFrame([
-                    {"Metric": k, "Average": f"{v['avg']:.4f}", "Std": f"{v['std']:.4f}"}
-                    for k, v in metrics_avg_std.items()
-                ])
-                csv_path = os.path.join(metrics_dir, "metrics.csv")
-                latex_path = os.path.join(metrics_dir, "metrics.tex")
-                metrics_df.to_csv(csv_path, index=False)
+                # Save table in LaTeX format: original value systems to learned ones
+                orig_vs = []
+                learned_vs = []
+                agent_ids = []
+                paretos = []
+                for (ag, orig), learned in target_agent_and_vs_to_learned_ones.items():
+                    agent_ids.append(ag)
+                    orig_vs.append(tuple([float(f"{v:.3f}") for v in orig]))
+                    learned_vs.append(
+                        tuple([float(f"{v:.3f}") for v in learned]))
+                    paretos.append(
+                        target_agent_and_vs_to_learned_pareto[(ag, orig)])
+                # print("PARETOS", paretos)
+                paretos = np.asarray(paretos)
+                print(np.array(paretos).shape)
+                df_vs = pd.DataFrame({
+                    "Agent": agent_ids,
+                    "Original Value System": orig_vs,
+                    "Learned Value System": learned_vs,
+                    "In PF": [1.0 if transform_weights_to_tuple(learned) in weights_in_pareto_front else 0.0 for learned in learned_vs],
+                    **{f"L. {values_names[i]}": paretos[:, i] for i in range(len(values_names))}
+                })
+                table_dir = os.path.join(run_dir, "tables", ename)
+                os.makedirs(table_dir, exist_ok=True)
+                latex_path = os.path.join(
+                    table_dir, f"original_vs_to_learned_vs_L{l_num}.tex")
                 with open(latex_path, "w") as f:
-                    f.write(metrics_df.to_latex(index=False, escape=False))
-                print(f"Saved metrics_L table to {csv_path} and {latex_path}")
-            plot_metrics_for_experiments(historic_per_ename, enames,
-                                        run_dir=rundir_plots,
-                                        maximum_conciseness_per_ename=maximum_conciseness_per_ename, n_iterations_real=n_iter,  fontsize=fontsize)
-            
-            
+                    f.write(df_vs.to_latex(index=False, escape=False))
+                print(f"Saved original vs to learned vs table to {latex_path}")
 
+                df_vs_all_seeds.append(df_vs)
 
+                # --- Aggregate across all seeds ---
+                # Only do this after all seeds are processed, so outside the per-seed loop:
+            # After the for ename in enames: loop, add:
 
+                metrics_L.append(metrics_ename)
+                metrics_L_clust.append(metrics_ename_clust)
+        # process the average table of original to learned value systems.
 
-            
-            
-            
-        
+        if df_vs_all_seeds:
+            # Concatenate all dataframes
+            df_all = pd.concat(df_vs_all_seeds, ignore_index=True)
+            # Group by Agent and Original Value System
+            group_cols = ["Agent", "Original Value System"]
+            agg_dict = {}
 
-            # 2: tables.
-            # Put for the first, middle, and last assignment in separated tables.
-            # For each assignment, put in a table the value systems of each cluster, the number of agents, the representativity of each cluster regarding value systems, average distance to other clusters, the combined score, the representativity and conciseness of the assignment, and the grouinding coherence (given by the .gr_score).
-            #  Make every single column modular, i.e. to activate or deactivate it with a flag.
-            # Output the tables in latex anc csv in the test_results/{experiment_name}/csv and test_results/{experiment_name}/latex folders.
+            # Aggregate learned value system: mean and std per dimension
+            def agg_learned_vs(series):
+                arr = np.array(series.tolist())
+                mean = np.mean(arr, axis=0)
+                std = np.std(arr, axis=0)
+                mean_str = tuple([float(f"{v:.3f}") for v in mean])
+                std_str = tuple([float(f"{v:.3f}") for v in std])
+                return f"{mean_str} ± {std_str}"
 
- 
+            agg_dict["Learned Value System"] = agg_learned_vs
+
+            # Aggregate In PF: mean (percentage)
+            agg_dict["In PF"] = lambda x: f"{np.mean(x)*100:.1f}%"
+
+            # Aggregate each L. ... column: mean ± std
+            for i in range(len(values_names)):
+                col = f"L. {values_names[i]}"
+                agg_dict[col] = lambda x, col=col: f"{np.mean(x):.3f} ± {np.std(x):.3f}"
+
+            df_agg = df_all.groupby(group_cols).agg(agg_dict).reset_index()
+
+            # Save aggregated table
+            agg_table_dir = os.path.join(
+                run_dir, "tables", f"aggregated_L{l_num}")
+            os.makedirs(agg_table_dir, exist_ok=True)
+            latex_agg_path = os.path.join(
+                agg_table_dir, f"original_vs_to_learned_vs_aggregated_L{l_num}.tex")
+            with open(latex_agg_path, "w") as f:
+                f.write(df_agg.to_latex(index=False, escape=False))
+            print(
+                f"Saved aggregated original vs to learned vs table to {latex_agg_path}")
+
+        # plot di scores and MO metrics:
+        for im, metr in enumerate([metrics_L, metrics_L_clust]):
+            n_iter = max([len(v)
+                         for k, v in historic_per_ename.items() if k in enames])
+            rundir_plots = os.path.join(run_dir, 'train', 'plot_metrics')
+            # Save metrics_L to a CSV and LaTeX table
+            metrics_dir = os.path.join(
+                run_dir, "tables", f"L{l_num}_metrics" if im == 0 else f"L{l_num}_metrics_clust")
+            os.makedirs(metrics_dir, exist_ok=True)
+            # Compute average and standard deviation for each metric in metrics_L
+            metrics_avg_std = {}
+            for key in metr[0].keys():
+                values = [m[key] for m in metr if key in m]
+                # Only consider numeric values
+                values = [v for v in values if isinstance(
+                    v, (int, float, np.number))]
+                if values:
+                    metrics_avg_std[key] = {
+                        "avg": np.mean(values),
+                        "std": np.std(values)
+                    }
+            # Prepare DataFrame for output
+            metrics_df = pd.DataFrame([
+                {"Metric": k,
+                    "Average": f"{v['avg']:.4f}", "Std": f"{v['std']:.4f}"}
+                for k, v in metrics_avg_std.items()
+            ])
+            csv_path = os.path.join(metrics_dir, "metrics.csv")
+            latex_path = os.path.join(metrics_dir, "metrics.tex")
+            metrics_df.to_csv(csv_path, index=False)
+            with open(latex_path, "w") as f:
+                f.write(metrics_df.to_latex(index=False, escape=False))
+            print(f"Saved metrics_L table to {csv_path} and {latex_path}")
+        plot_metrics_for_experiments(historic_per_ename, enames,
+                                     run_dir=rundir_plots,
+                                     maximum_conciseness_per_ename=maximum_conciseness_per_ename, n_iterations_real=n_iter,  fontsize=fontsize)
+
+        # 2: tables.
+        # Put for the first, middle, and last assignment in separated tables.
+        # For each assignment, put in a table the value systems of each cluster, the number of agents, the representativity of each cluster regarding value systems, average distance to other clusters, the combined score, the representativity and conciseness of the assignment, and the grouinding coherence (given by the .gr_score).
+        #  Make every single column modular, i.e. to activate or deactivate it with a flag.
+        # Output the tables in latex anc csv in the test_results/{experiment_name}/csv and test_results/{experiment_name}/latex folders.

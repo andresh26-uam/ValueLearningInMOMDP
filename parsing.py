@@ -1,5 +1,6 @@
 
 
+from mushroom_rl.environments import MO_Gymnasium as MO_GymMushroom
 from copy import deepcopy
 import torch
 
@@ -20,7 +21,7 @@ from src.algorithms.preference_based_vsl_lib import BaseVSLClusterRewardLoss, Co
 from src.algorithms.preference_based_vsl_simple import EnvelopeClusteredPBMORL
 from src.dataset_processing.utils import DEFAULT_SEED
 from src.feature_extractors import BaseRewardFeatureExtractor, ObservationMatrixRewardFeatureExtractor, ObservationWrapperFeatureExtractor
-from src.policies.morl_custom_reward import ROLLOUT_BUFFER_CLASSES, EnvelopeCustomReward, EnvelopePBMORL, RolloutBufferCustomReward
+from src.policies.morl_custom_reward import ROLLOUT_BUFFER_CLASSES, EnvelopeCustomReward, EnvelopePBMORL
 from src.policies.vsl_policies import LearnerValueSystemLearningPolicy, MaskedPolicySimple, VAlignedDictSpaceActionPolicy, ValueSystemLearningPolicyCustomLearner
 from baraacuda.utils.wrappers import LL_Terminations, RewardAccumulator, AccumulatedRewardsStateAugmentor, TransformVectorReward, OneHotObservationWrapper, NormalizeRewardWrapper
 
@@ -38,9 +39,8 @@ from mo_gymnasium.wrappers.wrappers import MORecordEpisodeStatistics, MONormaliz
 from mo_gymnasium.wrappers.vector import MOSyncVectorEnv
 from stable_baselines3.common.vec_env import DummyVecEnv
 
-from src.reward_nets.vsl_reward_functions import parse_layer_name
 from src.utils import sample_example_profiles
-#from use_cases.roadworld_env_use_case.network_env import FeaturePreprocess, FeatureSelection
+# from use_cases.roadworld_env_use_case.network_env import FeaturePreprocess, FeatureSelection
 
 WRAPPERS = {
     "NormalizeObservation": NormalizeObservation,
@@ -198,12 +198,15 @@ def parse_wrappers_from_json(wrapper_json_list, discount_official=1.0):
         wrappers.append((WRAPPERS[wtype], wkwargs))
     return wrappers, normalizer
 
+
 MORL_ALGOS = deepcopy(ALGOS)
 MORL_ALGOS.update({
     "EnvelopeCustomReward": EnvelopeCustomReward,
     "EnvelopePBMORL": EnvelopePBMORL,
     "EnvelopeClusteredPBMORL": EnvelopeClusteredPBMORL
 })
+
+
 def parse_policy_approximator(ref_class, env_name: str, society_data: Dict, environment_data: Dict, ref_policy_kwargs: Dict, train_environment: gym.Env, train_environment_mush=None, parser_args=None, learner_or_expert: str = 'expert'):
 
     is_single_objective = False
@@ -221,23 +224,36 @@ def parse_policy_approximator(ref_class, env_name: str, society_data: Dict, envi
             ref_policy_kwargs['train_kwargs']['known_pareto_front'] = eval(
                 ref_policy_kwargs['train_kwargs']['known_pareto_front'])
         elif parser_args.environment == 'mvc':
-            #MANEL: 
-            ref_policy_kwargs['train_kwargs']['known_pareto_front'] = np.array([[  4.8412,   0.    ,   0.    ],
-                    [  5.2608,  -0.0728,  -0.0728],
-                    [  5.2511,  -0.064 ,  -0.064 ],
-                    [  7.0915,   0.    ,  -7.6599],
-                    [  6.5929,  -0.4065,  -0.6339],
-                    [  6.8871,  -0.6453,  -0.6732],
-                    [  7.1659,  -0.8092,  -0.846 ],
-                    [  8.3184, -16.9284,   0.    ],
-                    [  8.413 ,  -0.9703,  -4.3516],
-                    [  7.741 ,  -0.817 ,  -1.5626],
-                    [  7.3295,  -0.8228,  -0.9744],
-                    [  8.3812, -16.9581,   0.    ],
-                    [  9.5079,  -1.9701,  -4.9198],
-                    [  9.2773,  -1.9701,  -3.7342],
-                    [  9.0842, -13.3525,  -1.3151]])
-        
+            # MANEL:
+            ref_policy_kwargs['train_kwargs']['known_pareto_front'] = np.array([[4.8412,   0.,   0.],
+                                                                                [5.2608,  -
+                                                                                    0.0728,  -0.0728],
+                                                                                [5.2511,  -
+                                                                                    0.064,  -0.064],
+                                                                                [7.0915,
+                                                                                    0.,  -7.6599],
+                                                                                [6.5929,  -
+                                                                                    0.4065,  -0.6339],
+                                                                                [6.8871,  -
+                                                                                    0.6453,  -0.6732],
+                                                                                [7.1659,  -
+                                                                                    0.8092,  -0.846],
+                                                                                [8.3184, -
+                                                                                    16.9284,   0.],
+                                                                                [8.413,  -
+                                                                                    0.9703,  -4.3516],
+                                                                                [7.741,  -
+                                                                                    0.817,  -1.5626],
+                                                                                [7.3295,  -
+                                                                                    0.8228,  -0.9744],
+                                                                                [8.3812, -
+                                                                                    16.9581,   0.],
+                                                                                [9.5079,  -
+                                                                                    1.9701,  -4.9198],
+                                                                                [9.2773,  -
+                                                                                    1.9701,  -3.7342],
+                                                                                [9.0842, -13.3525,  -1.3151]])
+
         if env_name in ENVS_WITH_KNOWN_PARETO_FRONT:
             ref_policy_kwargs['train_kwargs']['known_pareto_front'] = train_environment.unwrapped.pareto_front(
                 gamma=alg_config['discount_factor'])
@@ -299,10 +315,12 @@ def parse_learner_policy_class(learner_policy_class):
 
 
 def parse_learner_kwargs(learner_kwargs):
-    
+
     if learner_kwargs.get('rollout_buffer_class', None) is not None:
         learner_kwargs['rollout_buffer_class'] = ROLLOUT_BUFFER_CLASSES[learner_kwargs['rollout_buffer_class']]
-    return learner_kwargs   
+    return learner_kwargs
+
+
 def parse_learner_policy_kwargs(learner_policy_class, learner_policy_kwargs, ref_env: gym.Env, gamma: float, seed):
 
     if learner_policy_class in MORL_ALGOS.keys():
@@ -332,16 +350,17 @@ def parse_learner_policy_kwargs(learner_policy_class, learner_policy_kwargs, ref
     elif learner_policy_class == 'CustomPolicy':
         if 'MultiValued' in ref_env.spec.id:
             learner = lambda environment, alignment_function, grounding_function, reward, discount, stochastic, **kwargs: MultiValuedCarEnv.compute_policy(environment, reward=grounding_function,
-                                                                                                    discount=discount,
-                                                                                                    weights=alignment_function,**kwargs)
-            eap_agg_ = dict(policy_per_va_dict={},learner_method=learner, **learner_policy_kwargs.get('learner_policy_kwargs', {}))
+                                                                                                                                                           discount=discount,
+                                                                                                                                                           weights=alignment_function, **kwargs)
+            eap_agg_ = dict(policy_per_va_dict={}, learner_method=learner,
+                            **learner_policy_kwargs.get('learner_policy_kwargs', {}))
             eap_class = ValueSystemLearningPolicyCustomLearner
             return eap_agg_
         else:
             raise NotImplementedError(
                 f"Custom policy class {learner_policy_kwargs['learner_policy_class']} not implemented for environment {ref_env.spec.id}")
     elif learner_policy_class == 'EnvelopeCustomReward' or learner_policy_class == 'EnvelopePBMORL' or learner_policy_class == 'EnvelopeClusteredPBMORL':
-        return learner_policy_kwargs # TODO maybe more?
+        return learner_policy_kwargs  # TODO maybe more?
     else:
         raise NotImplementedError(
             f"Unknown learner class {learner_policy_class} for environment {ref_env.spec.id}")
@@ -399,10 +418,10 @@ def parse_dtype_torch(choice):
     return ndtype
 
 
-
 def parse_feature_extractors(environment, env_name,  environment_data, dtype=torch.float32, device: Union[str, torch.device] = 'auto'):
     # Dummy implementation, replace with actual logic
-    reward_net_features_extractor_kwargs = dict(observation_space=environment.observation_space,action_space=environment.action_space,device=device, dtype=dtype)
+    reward_net_features_extractor_kwargs = dict(
+        observation_space=environment.observation_space, action_space=environment.action_space, device=device, dtype=dtype)
     EXTRACTORS = {
         "BaseRewardFeatureExtractor": BaseRewardFeatureExtractor,
         "ObservationMatrixRewardFeatureExtractor": ObservationMatrixRewardFeatureExtractor,
@@ -411,12 +430,13 @@ def parse_feature_extractors(environment, env_name,  environment_data, dtype=tor
     if environment_data['reward_feature_extractor'] not in EXTRACTORS:
         raise ValueError(
             f"Unknown reward feature extractor {environment_data['reward_feature_extractor']}")
-    
+
     reward_net_features_extractor_class = EXTRACTORS[environment_data['reward_feature_extractor']]
-    
+
     if environment_data['reward_feature_extractor'] == "ObservationMatrixRewardFeatureExtractor":
         reward_net_features_extractor_kwargs.update(dict(
-            observation_matrix=environment.get_wrapper_attr('observation_matrix'),
+            observation_matrix=environment.get_wrapper_attr(
+                'observation_matrix'),
         ))
     elif environment_data['reward_feature_extractor'] == "OneHotRewardFeatureExtractor":
         reward_net_features_extractor_kwargs.update(dict(
@@ -424,12 +444,14 @@ def parse_feature_extractors(environment, env_name,  environment_data, dtype=tor
     elif environment_data['reward_feature_extractor'] == "ObservationWrapperFeatureExtractor":
         if env_name == 'dst':
             reward_net_features_extractor_kwargs.update(dict(
-                method=lambda obs: environment.get_wrapper_attr('get_reward')(obs),
+                method=lambda obs: environment.get_wrapper_attr(
+                    'get_reward')(obs),
             ))
             """reward_net_features_extractor_kwargs.update(dict(
                 method=lambda obs: environment.get_wrapper_attr('get_int_obs')(obs),
             ))"""
     return reward_net_features_extractor_class, reward_net_features_extractor_kwargs
+
 
 def parse_optimizer_data(environment_data, alg_config):
     opt_kwargs = environment_data['default_optimizer_kwargs']
@@ -448,8 +470,6 @@ def parse_optimizer_data(environment_data, alg_config):
         raise ValueError(f"Unknown optimizer class {opt_class}")
     return opt_kwargs, opt_class
 
-
-from mushroom_rl.environments import MO_Gymnasium as MO_GymMushroom
 
 def make_env(env_name, horizon, gamma, wrappers, seed, extra_kwargs, vectorizer=None, vectorizer_kwargs=None):
 
@@ -504,6 +524,7 @@ def parse_expert_policy_parameters(parser_args, environment_data: Dict, society_
             train_kwargs['reset_learning_starts'] = parser_args.retrain
     return epclass, epkwargs_no_train_kwargs, train_kwargs, is_single_objective
 
+
 def parse_learning_policy_parameters(parser_args, environment_data: Dict, society_data: Dict, train_environment: gym.Env, train_environment_mush, learning_policy_kwargs: Dict, learning_policy_class: str):
     epclass, epkwargs, is_single_objective = parse_policy_approximator(
         ref_class=learning_policy_class,
@@ -516,6 +537,7 @@ def parse_learning_policy_parameters(parser_args, environment_data: Dict, societ
     epkwargs_no_train_kwargs = deepcopy(epkwargs)
     train_kwargs = epkwargs_no_train_kwargs.pop('train_kwargs', None)
     return epclass, epkwargs_no_train_kwargs, train_kwargs, is_single_objective
+
 
 def parse_society_data(parser_args, society_config_env):
     society_data = society_config_env[parser_args.society_name]
@@ -538,6 +560,7 @@ def parse_society_data(parser_args, society_config_env):
     society_data['agents'] = sorted(d, key=lambda x: x['name'])
     return society_data
 
+
 def parse_loss_class(loss_class: str, loss_kwargs: dict):
 
     if loss_class == PrefLossClasses.CROSS_ENTROPY_CLUSTER.value:
@@ -551,8 +574,9 @@ def parse_loss_class(loss_class: str, loss_kwargs: dict):
     else:
         raise ValueError(
             "Unsupported for clustering VSL or unrecognized loss_class: ", loss_class)
-        
+
     return loss_class, loss_kwargs
+
 
 def create_environments(make_env, parser_args, environment_data, alg_config, expert_policy_kwargs):
 
@@ -616,9 +640,11 @@ def create_environments(make_env, parser_args, environment_data, alg_config, exp
 
     return eval_creator, train_creator
 
+
 PLOT_FONTSIZE = 16
 
-def parse_args()-> Tuple[argparse.ArgumentParser, argparse._ArgumentGroup, argparse._ArgumentGroup, argparse._ArgumentGroup]:
+
+def parse_args() -> Tuple[argparse.ArgumentParser, argparse._ArgumentGroup, argparse._ArgumentGroup, argparse._ArgumentGroup]:
     # IMPORTANT: Default Args are specified depending on the eval_environment in config.json
 
     parser = argparse.ArgumentParser(
@@ -627,15 +653,12 @@ def parse_args()-> Tuple[argparse.ArgumentParser, argparse._ArgumentGroup, argpa
     general_group = parser.add_argument_group('General Parameters')
     general_group.add_argument(
         '-dname', '--dataset_name', type=str, default='', required=True, help='Dataset name')
-    
 
-    
     general_group.add_argument('-dev', '--device', type=parse_device, default='auto', choices=['auto', 'cuda', 'cpu'],
                                help='Device. Use auto to select the best available device')
-    
+
     general_group.add_argument('-expol', '--exp_policy', default=None,
                                help="policy to be used to create the datasets")
-    
 
     general_group.add_argument(
         '-wbe', "--wandb-entity", type=str, help="Wandb entity to use", required=False)
@@ -664,8 +687,6 @@ def parse_args()-> Tuple[argparse.ArgumentParser, argparse._ArgumentGroup, argpa
     general_group.add_argument('-a', '--algorithm', type=str, choices=[
                                'pc', 'pbmorl', 'cpbmorl'], default='pc', help='Algorithm to use')
 
-    
-
     env_group = parser.add_argument_group('environment-specific Parameters')
 
     env_group.add_argument('-reps', '--reward_epsilon', default=0.0, type=float,
@@ -678,21 +699,19 @@ def parse_args_train():
     parser, general_group, env_group, alg_group = parse_args()
 
     general_group.add_argument('-ename', '--experiment_name', type=str,
-                                default='test_experiment', required=True, help='Experiment name')
+                               default='test_experiment', required=True, help='Experiment name')
 
     general_group.add_argument('-sp', '--split_ratio', type=float, default=0.5,
-                                help='Test split ratio. Not used unless the data is not already splitted.')
-
-    
+                               help='Test split ratio. Not used unless the data is not already splitted.')
 
     pc_group = alg_group.add_argument_group(
         'Preference Comparisons Parameters')
     pc_group.add_argument('-dfp', '--discount_factor_preferences', type=float,
                           default=1.0, help='Discount factor for preference comparisons')
-    
+
     alg_group.add_argument('-L', '--L_clusters', type=int, required=True,
                            help="Number of clusters per value (overriging configuration file)")
-    
+
     general_group.add_argument('-dtype', '--dtype', type=parse_dtype_torch, default=torch.float32, choices=[torch.float16, torch.float32, torch.float64],
                                help="Reward data to be saved in this numpy format")
     general_group.add_argument('-wb', '--use_wandb', action='store_true', default=False,
@@ -705,9 +724,8 @@ def parse_args_train():
 
 
 def parse_args_generate_dataset():
-    
-    parser, general_group, env_group, alg_group = parse_args()
 
+    parser, general_group, env_group, alg_group = parse_args()
 
     general_group.add_argument(
         '-pareto', '--remain_with_pareto_optimal_agents', action='store_true', default=False,
@@ -719,14 +737,14 @@ def parse_args_generate_dataset():
 
     general_group.add_argument('-genpf', '--gen_preferences', action='store_true', default=False,
                                help="Generate new preferences among the generated trajectories")
-    
+
     env_group.add_argument('-rt', '--retrain', action='store_true',
                            default=False, help='Retrain experts')
     env_group.add_argument('-rf', '--refine', action='store_true',
                            default=False, help='Refine experts')
     env_group.add_argument('-appr', '--is_tabular', action='store_true',
                            default=False, help='Approximate expert')
-    
+
     general_group.add_argument('-dtype', '--dtype', type=parse_dtype_numpy, default=np.float32, choices=[np.float16, np.float32, np.float64],
                                help="Reward data to be saved in this numpy format")
     return parser.parse_args()
@@ -740,20 +758,18 @@ def parse_enames_list(learning_curve_from):
         return []
     return [name.strip() for name in learning_curve_from.split(',') if name.strip()]
 
+
 def parse_args_evaluate():
     # IMPORTANT: Default Args are specified depending on the environment in config.json
-
 
     parser, general_group, env_group, alg_group = parse_args()
 
     general_group.add_argument('-sp', '--split_ratio', type=float, default=0.5,
-                                help='Test split ratio. Not used unless the data is not already splitted.')
-
-    
+                               help='Test split ratio. Not used unless the data is not already splitted.')
 
     general_group = parser.add_argument_group('General Parameters')
     general_group.add_argument('-ename', '--experiment_name', type=str,
-                                default='test_experiment', required=True, help='Experiment name')
+                               default='test_experiment', required=True, help='Experiment name')
     general_group.add_argument('-seeds', '--seeds', type=eval, default=None,
                                help='Number of seeds for the experiment.')
     general_group.add_argument('-Ltries', '--Ltries', type=eval, default=None,
@@ -776,8 +792,8 @@ def parse_args_evaluate():
         '-scf', '--show_only_config', action='store_true', default=False, required=False, help='Only show the training configuration used.')
     general_group.add_argument('-pol', '--policy', default=None,
                                help="policy training agents")
-    
+
     general_group.add_argument('-dtype', '--dtype', type=parse_dtype_torch, default=torch.float32, choices=[torch.float16, torch.float32, torch.float64],
                                help="Reward data to be saved in this numpy format")
-    
+
     return parser.parse_args()

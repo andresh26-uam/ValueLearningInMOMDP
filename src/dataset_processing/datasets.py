@@ -26,7 +26,6 @@ def create_dataset(parser_args, config, society_data={'name': "default", "same_t
 
     if 'agents' not in society_data.keys():
         agents = []
-        # TODO: HERE; THIS PATH IS NOT CORRECT!!
         folder_path = os.path.join(
             COMPARISONS_DATASETS_PATH, f"{environment_data['name']}/{society_data['name']}/{dataset_name}")
         for root, dirs, files in os.walk(folder_path):

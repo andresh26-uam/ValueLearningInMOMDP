@@ -207,6 +207,9 @@ marimo/_lsp/
 __marimo__/
 
 _*[^_]+
+
+
+___*
 results/*
 wandb/*
 tensorboard/*

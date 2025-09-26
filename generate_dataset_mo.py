@@ -31,14 +31,11 @@ from src.utils import filter_none_args, load_json_config, sample_example_profile
 import gymnasium as gym
 
 
-#from use_cases.roadworld_env_use_case.network_env import FeaturePreprocess, FeatureSelection
+# from use_cases.roadworld_env_use_case.network_env import FeaturePreprocess, FeatureSelection
 from utils import dataset_to_trajectories, evaluate, train, visualize_pareto_front
 
 
-
 from mo_gymnasium.wrappers.wrappers import MORecordEpisodeStatistics
-
-
 
 
 if __name__ == "__main__":
@@ -109,7 +106,8 @@ if __name__ == "__main__":
     # TODO: This should be in the algorithm config.
 
     # This is not used normally...
-    run_dir = os.path.join("results", parser_args.environment, "datasets", dataset_name)  # directory for results
+    run_dir = os.path.join("results", parser_args.environment,
+                           "datasets", dataset_name)  # directory for results
 
     os.makedirs(run_dir, exist_ok=True)
     print(f"Run Name: {run_dir}")
@@ -207,12 +205,12 @@ if __name__ == "__main__":
                                                                          class_name=mobaselines_agent.policy.__class__.__name__,
                                                                          grounding_name='default'), name='exp'+expert_policy_class,)
         print("GETTING FROM: ", calculate_expert_policy_save_path(
-                                                                         environment_name=parser_args.environment,
-                                                                         dataset_name=parser_args.dataset_name,
-                                                                         society_name=parser_args.society_name,
-                                                                         class_name=mobaselines_agent.policy.__class__.__name__,
-                                                                         grounding_name='default'))
-        
+            environment_name=parser_args.environment,
+            dataset_name=parser_args.dataset_name,
+            society_name=parser_args.society_name,
+            class_name=mobaselines_agent.policy.__class__.__name__,
+            grounding_name='default'))
+
     except FileNotFoundError as e:
         print(f"Expert policy not found")
         if (not parser_args.retrain) or parser_args.refine:
@@ -253,8 +251,8 @@ if __name__ == "__main__":
                       scalarized_discounted_return,
                       vec_return,
                       disc_vec_return) = obtain_trajectories_and_eval_mo(n_seeds=100, agent=mobaselines_agent, env=eval_environment_mush.env, ws=[mobaselines_agent.get_weights()], ws_eval=[mobaselines_agent.get_weights()], seed=parser_args.seed)
-        
-        print("EVAL WEIGHTS??:", mobaselines_agent.get_weights())
+
+        #print("EVAL WEIGHTS??:", mobaselines_agent.get_weights())
         print("Evaluation time AFTER (NOT SAVED): ", eval_time)
         print("Trajectories obtained AFTER (NOT SAVED): ", len(trajs_pure))
         print("Returns: ", np.mean(returns))
@@ -301,14 +299,14 @@ if __name__ == "__main__":
                                                                                                 num_eval_episodes_for_front=train_kwargs[
                                                                                                     'num_eval_episodes_for_front'],
                                                                                                 discount=alg_config['discount_factor'])
-        
+
         print("Solution set:", unfiltered_front_and_weights)
         print("LEARNED PARETO FRONT:", pareto_front_and_weights)
         print("REAL PARETO FRONT:", train_kwargs_restarted.get(
             'known_pareto_front', None))
         visualize_pareto_front(title="Expert Pareto Front Comparison",
-        calculate_metrics=True,
-        ref_point=train_kwargs_restarted.get(
+                               calculate_metrics=True,
+                               ref_point=train_kwargs_restarted.get(
                                    'ref_point', None),
                                learned_front_data=pareto_front_and_weights,
                                objective_names=environment_data['values_names'],
@@ -316,11 +314,11 @@ if __name__ == "__main__":
                                    'known_pareto_front', None),
                                save_path=os.path.join(run_dir, f'expert_pareto_front'), show=False, fontsize=parser_args.plot_fontsize)
         visualize_pareto_front(title="Expert Solutions",
-        ref_point=train_kwargs_restarted.get(
+                               ref_point=train_kwargs_restarted.get(
                                    'ref_point', None),
                                objective_names=environment_data['values_names'],
                                learned_front_data=unfiltered_front_and_weights,
-                               
+
                                known_front_data=train_kwargs_restarted.get(
                                    'known_pareto_front', None),
                                save_path=os.path.join(run_dir, f'expert_solutions'), show=False, fontsize=parser_args.plot_fontsize)
@@ -414,9 +412,9 @@ if __name__ == "__main__":
                               scalarized_discounted_return,
                               vec_return,
                               disc_vec_return) = obtain_trajectories_and_eval_mo(n_seeds=100,
-                                                exploration=1.0-
-                                                            ag['data']['rationality'],
-                                                 agent=mobaselines_agent, env=eval_environment_mush.env, ws=[mobaselines_agent.get_weights()], ws_eval=[mobaselines_agent.get_weights()], seed=parser_args.seed)
+                                                                                 exploration=1.0 -
+                                                                                 ag['data']['rationality'],
+                                                                                 agent=mobaselines_agent, env=eval_environment_mush.env, ws=[mobaselines_agent.get_weights()], ws_eval=[mobaselines_agent.get_weights()], seed=parser_args.seed)
 
                 print("PSEUDE EVAL: ", scalarized_return,
                       scalarized_discounted_return,
@@ -445,8 +443,7 @@ if __name__ == "__main__":
                     f"Rational Trajs Done {iag} ({len(ag_rational_trajs)}) Weigth: {w}")
                 print("Returns: ", np.mean(returns))
                 print("Value Returns: ", np.mean(v_returns, axis=0))
-                #exit(0)
-
+                # exit(0)
 
             else:
                 ag_rational_trajs = []
@@ -509,7 +506,7 @@ if __name__ == "__main__":
                         print("NAGENTS?", ag['n_agents'])
                     if ag['n_agents'] > 1:
                         np.testing.assert_allclose(all_trajs_ag_train[0].obs, all_trajs_ag_train[int(
-                        np.ceil((1-parser_args.test_size)*len(all_trajs_ag)))].obs)
+                            np.ceil((1-parser_args.test_size)*len(all_trajs_ag)))].obs)
                 save_trajectories(all_trajs_ag_train, dataset_name=dataset_name+'_train', ag=ag,
                                   society_data=society_data, environment_data=environment_data, dtype=parser_args.dtype)
 
@@ -567,8 +564,6 @@ if __name__ == "__main__":
                 all_trajs_ag = load_trajectories(
                     dataset_name=dataset_name+suffix, ag=ag, society_data=society_data, environment_data=environment_data, override_dtype=parser_args.dtype)
 
-                print(
-                    f"1AGENT {iag} ({ag['name']}) - {len(all_trajs_ag)} trajectories loaded", suffix)
                 if society_data["same_trajectories_for_each_agent_type"]:
                     # This assumes the trajectories of each agent are the same, and then we will make each agent label the same pairs
                     idxs_unique = np.random.permutation(
@@ -594,8 +589,6 @@ if __name__ == "__main__":
                         discounted_sums_per_grounding[vi, i] = imitation.data.rollout.discounted_sum(
                             all_trajs_ag[i].v_rews[vi], gamma=discount_factor_preferences)
                 # We save the comparison of 1 vs 2, 2 vs 3 in the order stablished in discounted_sums.
-                print(
-                    f"2AGENT {iag} ({ag['name']}) - {len(idxs)} idxs generated", len(discounted_sums), suffix)
                 assert max(idxs) < len(all_trajs_ag)
                 save_preferences(idxs=idxs, discounted_sums=discounted_sums, discounted_sums_per_grounding=discounted_sums_per_grounding,
                                  dataset_name=dataset_name+suffix, epsilon=parser_args.reward_epsilon, environment_data=environment_data, society_data=society_data, ag=ag)
@@ -647,7 +640,7 @@ if __name__ == "__main__":
                 for i in range((len(trajs_ag))):
                     np.testing.assert_almost_equal(discounted_sums_per_grounding[vi, i], parser_args.dtype(imitation.data.rollout.discounted_sum(
                         trajs_ag[i].v_rews[vi], gamma=discount_factor_preferences)), decimal=4 if parser_args.dtype in [np.float32, np.float64] else 3)
-                    
+
                 for idx, pr in zip(idxs, preferences_per_grounding[:, vi]):
                     idx = [int(ix) for ix in idx]
 

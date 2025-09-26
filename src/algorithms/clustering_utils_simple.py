@@ -40,8 +40,8 @@ def check_grounding_value_system_networks_consistency_with_optim(grounding, valu
         else:
             # Check that all parameter values are equal (not just references)
             # Compare parameter values (not ids)
-            print("OP", optimizer_params, len(optimizer_params))
-            print("NP",network_params, len(network_params))
+            #print("OP", optimizer_params, len(optimizer_params))
+            #print("NP",network_params, len(network_params))
             assert len(optimizer_params) == len(network_params), "Number of optimizer and network parameters do not match."
             # Match parameters by their content, not just shape
             unmatched_network_params = list(network_params)
@@ -368,7 +368,7 @@ class ClusterAssignment(object):
                         probs_cid1 = probability_BT(w1.forward(grounding1), w1.forward(grounding2)).squeeze(-1)
                         assert probs_cid1.shape == (len(dataset),), f"Expected shape {(len(dataset),)}, got {probs_cid1.shape}"
                         pref_model_per_cid[cluster_id1] = probs_cid1
-                        print(dataset.fidxs_per_agent.keys())
+                        #print(dataset.fidxs_per_agent.keys())
                         cluster_idxs_per_cid[cluster_id1] = [idx for ag in aid_in_c1 for idx in dataset.fidxs_per_agent[ag]]
                         for ag in aid_in_c1:
                             fidxs = dataset.fidxs_per_agent[ag]

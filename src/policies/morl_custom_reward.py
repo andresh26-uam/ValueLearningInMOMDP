@@ -101,10 +101,7 @@ class CustomRewardReplayBuffer(PrioritizedReplayBuffer):
                 assert any(np.isclose(original_rew[i], v, atol=1e-6) for v in [-1.0, -0.1, -0.5, 0.0, 0.4, 0.2, 0.3, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]), f"Invalid original_rew: {original_rew}"
             """#print(action, obs, next_obs, done, reward)
             assert isinstance(action, (int, np.uint8, np.int64)), type(action)
-            #r2 = self.reward_vector_function(obs, action, next_obs, done).detach().numpy()
-            #assert np.allclose(r, r2), f"Reward mismatch: {r} vs {r2}"
-            #assert r.shape == self.rewards.shape[-1] or r.shape == (self.rewards.shape[-1],), f"Reward shape mismatch: {r.shape} vs {self.rewards.shape[-1]}"
-            #self.rewards[self.ptr - 1] = r # TODO..
+            
             assert self.rewards.shape == self._original_rewards.shape, f"Rewards shape mismatch: {self.rewards.shape} vs {self._original_rewards.shape}"
     def sample(self, batch_size, to_tensor=False, device=None, replace=True, use_cer=True):
         if self.prioritized:
@@ -264,8 +261,7 @@ class CustomRewardReplayBuffer(PrioritizedReplayBuffer):
                 assert len(traj_real_rewards1.shape) == 2
                 rewards_original1.append(trajs_rewards_orig1)
                 rewards_original2.append(trajs_rewards_orig2)
-                #print("RO?", rewards_original1)
-                #input()
+                
                 if H is not None:
                     assert len(trajs_rewards_orig1) == len(trajs_rewards_orig1) <= H, f"Sampled {len(trajs_rewards_orig1)} rewards, expected {H}."
                 else:
@@ -555,7 +551,7 @@ class EnvelopePBMORL(EnvelopeCustomReward):
             sampled_w = self.sample_new_weights(Nw)
 
             if max_reward_buffer_size < len(self.running_dataset) + Ns * Nw:
-                    print("\033[95mPOPPPED",  len(self.running_dataset) - max_reward_buffer_size + Ns * Nw, "out of", len(self.running_dataset), "max", max_reward_buffer_size, "\033[0m")
+                    print("\033[95mPOPPED",  len(self.running_dataset) - max_reward_buffer_size + Ns * Nw, "out of", len(self.running_dataset), "max", max_reward_buffer_size, "\033[0m")
                     self.running_dataset.pop(len(self.running_dataset) - max_reward_buffer_size + Ns * Nw)
 
 
