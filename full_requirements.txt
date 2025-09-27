@@ -12,7 +12,7 @@ ascii-art==0.1.0
 asttokens==3.0.0
 attrs==25.3.0
 autograd==1.8.0
--e git+https://github.com/ARAAC/baraacuda.git@f1bffdca255181e2b46e6a6f8c3890d31f09bb18#egg=baraacuda
+-e git+https://github.com/ARAAC/baraacuda.git@671a8cd06c3b25e2ea19c9e8a2d06b63daec6c6e#egg=baraacuda
 blinker==1.9.0
 certifi==2025.7.14
 cffi==1.17.1
@@ -59,7 +59,7 @@ huggingface-sb3==3.0
 idna==3.10
 imageio==2.37.0
 imageio-ffmpeg==0.6.0
--e git+https://github.com/andresh26-uam/imitationgym1.git@e5ef18806c449ca47153b494a02471c5e2ae3a14#egg=imitation
+-e git+https://github.com/andresh26-uam/imitationgym1.git@a526e76fff4d165a2b04684f8d068e3b1ece9266#egg=imitation
 importlib_metadata==8.7.0
 iniconfig==2.1.0
 interpret==0.6.10
@@ -86,13 +86,13 @@ matplotlib-inline==0.1.7
 mdurl==0.1.2
 minari==0.5.2
 mo-gymnasium==1.3.1
--e git+https://github.com/andresh26-uam/morl-baselines-reward.git@fbd03992247aca8a04edc1c97c8977454db60102#egg=morl_baselines
+-e git+https://github.com/andresh26-uam/morl-baselines-reward.git@f45071bfc7564fd5f2c27e7bff3bc5bd6461312a#egg=morl_baselines
 moviepy==2.2.1
 mpmath==1.3.0
 multidict==6.6.3
 multiprocess==0.70.16
 munch==4.0.0
-mushroom-rl @ file:///Users/andresh26/Desktop/Repositories/mushroom-rl
+-e git+https://github.com/Katze2664/mushroom-rl.git@3a3ba1d2062c46feed9e5c1687ac87fc46500d6f#egg=mushroom_rl
 narwhals==1.48.1
 nest-asyncio==1.6.0
 networkx==3.5
