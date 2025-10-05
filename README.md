@@ -14,19 +14,19 @@ The repository includes the other algorithms used in the paper in the evaluation
 ### If not changing the full code:
 1. Clone the following repositories inside the main folder.
     - [MORL baselines fork](https://github.com/andresh26-uam/morl-baselines-reward.git).
-    - [Mushroom RL fork](https://github.com/Katze2664/mushroom-rl.git). Then make sure to select the branch "andres-dev".
-        - `cd mushroom-rl`
+    - [Mushroom RL fork](https://github.com/andresh26-uam/mushroom-rl-kz.git). Then make sure to select the branch "andres-dev".
+        - `cd mushroom-rl-kz`
         - `git checkout andres-dev`
         - `cd ..`
 2. Clone this repository in the main folder. 
     - `git clone https://github.com/andresh26-uam/ValueLearningInMOMDP.git`
     - `cd ValueLearningInMOMDP`
 3. Install packages
-    - `pip install ../mushroom-rl`
+    - `pip install ../mushroom-rl-kz`
     - `pip install ../morl-baselines-reward` 
 
 4. Requirements.
-    - `pip install full_requirements.txt`
+    - `pip install -r full_requirements.txt`
 
 ### If planning on changing the full code (or found issues):
 1. Perform the steps 1-3 from "If not chancing the full code".
@@ -39,7 +39,7 @@ The repository includes the other algorithms used in the paper in the evaluation
     - Clone: [Imitation fork](https://github.com/andresh26-uam/imitationgym1.git)
 4. Requirements.
     - Remove or comment lines 89 and 95 in `full_requirements.txt`.
-    - `pip install full_requirements.txt`
+    - `pip install -r full_requirements.txt`
 
 ## Reproduce experiments.
 ### Generate preference datasets (and execute the Envelope Q learning baseline)
