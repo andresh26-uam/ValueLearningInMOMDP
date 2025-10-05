@@ -18,7 +18,7 @@ The repository includes the other algorithms used in the paper in the evaluation
         - `cd mushroom-rl`
         - `git checkout andres-dev`
         - `cd ..`
-2. Clone this repository in folder F. 
+2. Clone this repository in the main folder. 
     - `git clone https://github.com/andresh26-uam/ValueLearningInMOMDP.git`
     - `cd ValueLearningInMOMDP`
 3. Install packages
