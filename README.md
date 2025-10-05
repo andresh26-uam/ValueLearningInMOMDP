@@ -7,14 +7,14 @@ The repository includes the other algorithms used in the paper in the evaluation
 ## Installation
 
 ## Python Environment
-1.  Select an empty folder F, go inside.
+1. Select an empty main folder, go inside.
 2. Create a virtual environment with Python 3.13+. We used 3.13.5 in the paper.
     - `python3.13 -m venv .venv`
     - `source .venv/bin/activate`
 ### If not changing the full code:
-1. Clone the following repositories inside the same folder (F).
+1. Clone the following repositories inside the main folder.
     - [MORL baselines fork](https://github.com/andresh26-uam/morl-baselines-reward.git).
-    - [Mushroom RL fork](). Then make sure to select the branch "andres-dev".
+    - [Mushroom RL fork](https://github.com/Katze2664/mushroom-rl.git). Then make sure to select the branch "andres-dev".
         - `cd mushroom-rl`
         - `git checkout andres-dev`
         - `cd ..`
@@ -35,6 +35,7 @@ The repository includes the other algorithms used in the paper in the evaluation
     - Clone: [Baraacuda](https://github.com/ARAAC/baraacuda.git). Then, make sure to select the branch "andres-dev":
         - `cd baraacuda`
         - `git checkout andres-dev`
+        - `cd ..`
     - Clone: [Imitation fork](https://github.com/andresh26-uam/imitationgym1.git)
 4. Requirements.
     - Remove or comment lines 89 and 95 in `full_requirements.txt`.
