@@ -225,7 +225,36 @@ def parse_policy_approximator(ref_class, env_name: str, society_data: Dict, envi
                 ref_policy_kwargs['train_kwargs']['known_pareto_front'])
         elif parser_args.environment == 'mvc':
             # MANEL:
-            ref_policy_kwargs['train_kwargs']['known_pareto_front'] = np.array([[4.8412,   0.,   0.],
+            # WEIGHTS:
+            """array([[0.177 , 0.304 , 0.519 ],
+       [0.2376, 0.7624, 0.    ],
+       [0.3037, 0.5188, 0.1775],
+       [0.3329, 0.3338, 0.3333],
+       [0.3646, 0.161 , 0.4744],
+       [0.3847, 0.    , 0.6153],
+       [0.4274, 0.5726, 0.    ],
+       [0.4742, 0.3653, 0.1604],
+       [0.5181, 0.1778, 0.3041],
+       [0.5746, 0.    , 0.4254],
+       [0.6167, 0.3833, 0.    ],
+       [0.6636, 0.1952, 0.1412],
+       [0.7687, 0.    , 0.2313],
+       [0.8268, 0.1732, 0.    ]]))"""
+            ref_policy_kwargs['train_kwargs']['known_pareto_front'] = np.array([[  4.5756,   0.    ,   0.    ],
+       [  6.6977,   0.    ,  -5.953 ],
+       [  5.5713,  -0.1536,  -0.6382],
+       [  6.0808,  -0.3425,  -0.3993],
+       [  6.4044,  -0.4795,  -0.4795],
+       [  8.0292, -15.1034,  -0.4035],
+       [  7.2675,   0.    ,  -8.6991],
+       [  7.8071,  -0.8179,  -1.8051],
+       [  7.7368,  -0.8182,  -1.4592],
+       [  8.2841, -15.2396,   0.    ],
+       [  9.3141,  -1.7966,  -5.5869],
+       [  9.4063,  -1.9701,  -4.0754],
+       [  9.0432, -13.372 ,  -1.4046],
+       [  9.5079,  -1.9701,  -4.9975]])
+            """OLD, better?????? 15... ?? [4.8412,   0.,   0.],
                                                                                 [5.2608,  -
                                                                                     0.0728,  -0.0728],
                                                                                 [5.2511,  -
@@ -252,8 +281,7 @@ def parse_policy_approximator(ref_class, env_name: str, society_data: Dict, envi
                                                                                     1.9701,  -4.9198],
                                                                                 [9.2773,  -
                                                                                     1.9701,  -3.7342],
-                                                                                [9.0842, -13.3525,  -1.3151]])
-
+                                                                                [9.0842, -13.3525,  -1.3151]"""
         if env_name in ENVS_WITH_KNOWN_PARETO_FRONT:
             ref_policy_kwargs['train_kwargs']['known_pareto_front'] = train_environment.unwrapped.pareto_front(
                 gamma=alg_config['discount_factor'])

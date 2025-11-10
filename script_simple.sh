@@ -217,5 +217,5 @@ if [[ "$mode" == "all" || "$mode" == "train" || "$mode" == "traineval" ]]; then
 fi
 echo "Training completed."
 if [[ "$mode" == "all" || "$mode" == "eval" || "$mode" == "traineval" ]]; then
-    python $O evaluate.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${L}_seed${seed} -sname $sname -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -e $env -strajs 200 -seps 0.05 -a $algo -cf algorithm_config_${algo}.json
+    python $O evaluate.py -ename ${prefix}mo_${algo}_${env}_${pol}_from_${expol}_L${L}_seed${seed} -sname $sname -expol $expol -pol $pol -dname ${prefix_data}mo_${env}_${expol} -e $env -strajs 1 -seps 0.05 -a $algo -cf algorithm_config_${algo}.json
 fi

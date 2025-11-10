@@ -1802,8 +1802,14 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
                 os.makedirs(ppath, exist_ok=True)
                 os.makedirs(plearned, exist_ok=True)
                 best_gr_then_vs_assignment: ClusterAssignment
+
+                #input()
                 weights_in_pareto_front = {transform_weights_to_tuple(t): vals for t, vals in zip(
                     unfiltered_front_and_weights[1], unfiltered_front_and_weights[0]) if any([np.allclose(vals, p) for p in pareto_front_and_weights[0]])}
+                
+                weights_in_pareto_front_REAL = {transform_weights_to_tuple(t): vals for t, vals in zip(
+                    unfiltered_front_and_weights[1], unfiltered_front_and_weights[0]) if any([np.allclose(vals, p) for p in known_pareto_front])}
+                
                 clusters_not_in_pf_idx = [u for u, v in enumerate(unfiltered_front_and_weights[1]) if (transform_weights_to_tuple(
                     v) not in weights_in_pareto_front.keys()) and transform_weights_to_tuple(v) in best_gr_then_vs_assignment.value_systems_active]
                 clusters_not_in_pf = (
@@ -1868,7 +1874,7 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
                     "Agent": agent_ids,
                     "Original Value System": orig_vs,
                     "Learned Value System": learned_vs,
-                    "In PF": [1.0 if transform_weights_to_tuple(learned) in weights_in_pareto_front else 0.0 for learned in learned_vs],
+                    "In PF": [1.0 if transform_weights_to_tuple(learned) in weights_in_pareto_front_REAL else 0.0 for learned in learned_vs],
                     **{f"L. {values_names[i]}": paretos[:, i] for i in range(len(values_names))}
                 })
                 table_dir = os.path.join(run_dir, "tables", ename)
@@ -1916,6 +1922,10 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
                 agg_dict[col] = lambda x, col=col: f"{np.mean(x):.3f} ± {np.std(x):.3f}"
 
             df_agg = df_all.groupby(group_cols).agg(agg_dict).reset_index()
+
+            inpfs = [np.mean(df_vs_all_seeds[idf]['In PF']) for idf in range(len(df_vs_all_seeds))]
+
+            df_agg['In PF Global'] = [f"{np.mean(inpfs):.3f} ± {np.std(inpfs):.3f}"]*len(df_agg)
 
             # Save aggregated table
             agg_table_dir = os.path.join(
