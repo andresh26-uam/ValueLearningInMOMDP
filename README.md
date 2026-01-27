@@ -1,8 +1,10 @@
 # Value Learning in Markov Decision Processes
 
-This repository contains the source code for the paper "Learning the Value Systems of Societies with Multi-objective Preference-based Inverse Reinforcement Learning", accepted at AAMAS 2026. Our algorithm, SVSL-P, observes a certain MOMDP envirnment, a given set of value labels and demonstrations of preferences of a (here, simulated) society of diverse agents with different value systems (multiobjective preference weights). Then, it simultaneously learns a reward vector for the MOMDP that implements a value alignment specification for the given set of values, a set of  upto `L` preference weights that describe the different preferences observed, a clustering of agents into these value systems, and a weight-dependent policy \(\Pi(s,a|W)\) that approximates the optimal policy for any given set of weights (in particular those selected as the clusters of the society). 
+This repository contains the source code for the paper "Learning the Value Systems of Societies with Multi-objective Preference-based Inverse Reinforcement Learning", accepted at AAMAS 2026 ([OpenReview](https://openreview.net/forum?id=rnjBIMCO24)). Our algorithm, SVSL-P, observes a certain MOMDP envirnment, a given set of value labels and demonstrations of preferences of a (here, simulated) society of diverse agents with different value systems (multiobjective preference weights). Then, it simultaneously learns a reward vector for the MOMDP that implements a value alignment specification for the given set of values, a set of  upto `L` preference weights that describe the different preferences observed, a clustering of agents into these value systems, and a weight-dependent policy \(\Pi(s,a|W)\) that approximates the optimal policy for any given set of weights (in particular those selected as the clusters of the society). 
 
 The repository includes the other algorithms used in the paper in the evaluation, namely Envelope Q-learning from MORL-baselines [MORL baselines](https://mo-gymnasium.farama.org/examples/morl_baselines/), a modification of our previous algorithm [Value Learning From Preferences](https://github.com/andresh26-uam/ValueLearningFromPreferences/tree/ECAI_VSL), and a custom implementation of [Preference-based Multi-Objective Reinforcement Learning](https://arxiv.org/html/2507.14066v1).
+
+This is the branch with the version of the code accepted at AAMAS 2026 (the one in the supplementary material of the OpenReview version). The development branch is available in the branch [main](https://github.com/andresh26-uam/ValueLearningInMOMDP). 
 
 ## Installation from GitHub
 
@@ -11,7 +13,7 @@ The repository includes the other algorithms used in the paper in the evaluation
 2. Create a virtual environment with Python 3.13+. We used 3.13.5 in the paper.
     - `python3.13 -m venv .venv`
     - `source .venv/bin/activate`
-### If not changing the full code:
+### If not modifying the full code:
 1. Clone the following repositories inside the main folder.
     - [MORL baselines fork](https://github.com/andresh26-uam/morl-baselines-reward.git).
     - [Mushroom RL fork](https://github.com/andresh26-uam/mushroom-rl-kz.git). Then make sure to select the branch "andres-dev".
@@ -41,7 +43,7 @@ The repository includes the other algorithms used in the paper in the evaluation
     - Remove or comment lines 89 and 95 in `full_requirements.txt`.
     - `pip install -r full_requirements.txt`
 
-## Installation of the static version in arXiv
+## Installation of the static version in OpenReview
 
 1. Go into ValueLearningInMOMDP.
 2. Create a virtual environment with Python 3.13+. We used 3.13.5 in the paper.
