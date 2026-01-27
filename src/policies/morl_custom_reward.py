@@ -96,7 +96,7 @@ class CustomRewardReplayBuffer(PrioritizedReplayBuffer):
         if self.maintain_original_reward:
             assert original_rew is not None, "original_rew must be provided if maintain_original_reward is True"
             self._original_rewards[self.ptr - 1] = np.array(original_rew).copy()
-            assert self.ptr - 1 == ptr_old or self.ptr - 1 == - 1, f"Pointer mismatch: {self.ptr - 1} vs {ptr_old} vs {len(self._original_rewards) - 1}"
+            assert self.ptr - 1 == ptr_old or (self.ptr - 1 == - 1 and ptr_old == self.max_size-1), f"Pointer mismatch: {self.ptr - 1} vs {ptr_old} vs {len(self._original_rewards) - 1}"
             """for i in range(len(original_rew)):
                 assert any(np.isclose(original_rew[i], v, atol=1e-6) for v in [-1.0, -0.1, -0.5, 0.0, 0.4, 0.2, 0.3, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]), f"Invalid original_rew: {original_rew}"
             """#print(action, obs, next_obs, done, reward)
@@ -519,7 +519,7 @@ class EnvelopePBMORL(EnvelopeCustomReward):
 
         
         t = time.time()
-        self.overseer_new_preferences(Ns, Nw, H, gamma_preferences, max_reward_buffer_size, qualitative_preferences=qualitative_preferences)
+        self.overseer_new_preferences(Ns, Nw, H, gamma_preferences, max_reward_buffer_size, qualitative_preferences)
         rt = time.time()   
         print(f"\033[33mOverseer new preferences took {rt-t:.4f} seconds\033[0m")
         assert th.is_grad_enabled()
@@ -550,9 +550,9 @@ class EnvelopePBMORL(EnvelopeCustomReward):
 
             sampled_w = self.sample_new_weights(Nw)
 
-            if max_reward_buffer_size < len(self.running_dataset) + Ns * Nw:
+            """if max_reward_buffer_size < len(self.running_dataset) + Ns * Nw:
                     print("\033[95mPOPPED",  len(self.running_dataset) - max_reward_buffer_size + Ns * Nw, "out of", len(self.running_dataset), "max", max_reward_buffer_size, "\033[0m")
-                    self.running_dataset.pop(len(self.running_dataset) - max_reward_buffer_size + Ns * Nw)
+                    self.running_dataset.pop(len(self.running_dataset) - max_reward_buffer_size + Ns * Nw)"""
 
 
             for w in sampled_w:

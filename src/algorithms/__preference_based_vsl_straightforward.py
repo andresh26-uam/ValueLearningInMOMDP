@@ -43,257 +43,6 @@ def parse_or_invent_alignment_function_from_name(agname, rdim: int):
 
 
 class PVSL(object):
-    def _clustered_pbmorl_reward_train_callback(self, base_dataset: VSLPreferenceDataset,
-                                                running_dataset: VSLPreferenceDataset,
-                                                reward_vector_function,
-                                                lexicographic_vs_first,
-                                                initial_reward_learning_iterations,
-                                                em_cycles_per_iteration,
-                                                m_steps_per_cycle,
-                                                batch_size_per_agent,
-                                                global_iter,
-                                                max_iter,
-                                                initial_exploration_rate,
-                                                mutation_prob, mutation_scale,
-                                                best_assignments_list: ClusterAssignmentMemory, initial_m_steps_per_cycle,
-                                                batch_size_in_running_dataset_for_cluster_assignment=0,
-                                                continue_with_best_cluster=False,
-                                                disable_selection_after_initial_reward_iterations=False,
-                                                use_running_dataset_in_assignment=False,
-                                                use_transitions=False,
-                                                allow_clusterize=True):
-        
-        assert batch_size_per_agent is not None
-        assert reward_vector_function == self.train_reward_net
-        condition_using_base = True
-        condition_avoid_selection = False
-        if running_dataset is not None:
-            condition_using_base = global_iter == 0 and (
-                self.mobaselines_agent.agent_mobaselines.global_step <= self.mobaselines_agent.agent_mobaselines.learning_starts)
-            initial_reward_learning_iterations = initial_reward_learning_iterations if condition_using_base else 1
-
-            if condition_using_base:
-                print(f"{Fore.GREEN}USING BASE, {self.mobaselines_agent.agent_mobaselines.global_step}/{self.mobaselines_agent.agent_mobaselines.learning_starts}{Style.RESET_ALL}")
-            else:
-                print(f"{Fore.RED}USING REPLAY, {self.mobaselines_agent.agent_mobaselines.global_step}/{self.mobaselines_agent.agent_mobaselines.learning_starts}{Style.RESET_ALL}")
-            train_set = base_dataset if condition_using_base else running_dataset
-            # TODO select a percentage from base dataset too to avoid drift.
-            
-        else:
-            initial_reward_learning_iterations = 1
-            train_set = base_dataset
-            
-        val_set = base_dataset
-
-        if isinstance(initial_reward_learning_iterations, str):
-            _, accuracy_needed = initial_reward_learning_iterations.split(':')
-            accuracy_needed = float(accuracy_needed)
-            initial_reward_learning_iterations = 10000
-        else:
-            accuracy_needed = 1.0
-
-        with tqdm(total=initial_reward_learning_iterations, desc="Initial Reward Learning Iterations",
-                  dynamic_ncols=True, disable=False,
-                  leave=False) as t_iterations:
-
-            for it in range(initial_reward_learning_iterations):
-                condition_avoid_selection = not allow_clusterize or (disable_selection_after_initial_reward_iterations and not condition_using_base)
-
-                if condition_avoid_selection:
-                    if not hasattr(self, '_last_avoid_selection'):
-                        self._last_avoid_selection = True
-                    mutated = False
-                    is_protected = False
-                    if self._last_avoid_selection:
-                        self._last_avoid_selection = False
-                        original = best_assignments_list.get_best_assignment(
-                            lexicographic_vs_first=False)[0]
-                        while len(best_assignments_list.memory) > 1:
-                            candidate = best_assignments_list.memory[-1]
-                            if candidate != original:
-                                best_assignments_list.memory.pop(-1)
-
-                    else:
-                        original = self.current_assignment
-                    self.current_assignment = original
-                    self.update_training_networks_from_assignment(
-                        self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
-                    # print(self.current_assignment.value_systems)
-                    # exit()
-                else:
-                    # print("DOING THIS")
-                    self.current_assignment, original, mutated, is_protected = self.selection(best_assignments_list,
-                                                                                              lexicographic_vs_first=lexicographic_vs_first,
-                                                                                              num_iterations=max_iter,
-                                                                                              iter_now=global_iter,
-                                                                                              initial_exploration_rate=initial_exploration_rate, mutation_prob=mutation_prob, mutation_scale=mutation_scale, dataset=base_dataset)
-                    # print(f"Selected assignment: {self.current_assignment} (mutated: {mutated}, protected: {is_protected}) from {len(best_assignments_list.memory)} candidates.")
-                    # input()
-
-                if not is_protected and not mutated:
-                    assert self.current_assignment == original, f"Mut? {mutated} Current assignment {self.current_assignment} is not equal to original {original}"
-
-                # train_dataset = dataset
-                # val_dataset = dataset
-                # self.current_assignment.certify_cluster_assignment_consistency()
-                if self.static_weights:
-                    print("Using static weights: (SHOULD BE)",
-                          self.get_value_systems())
-                if use_running_dataset_in_assignment:
-                    running_dataset_in_assignment = None if condition_using_base else running_dataset if condition_avoid_selection else None
-                else:
-                    running_dataset_in_assignment = None
-                """
-                        assert not use_running_dataset_in_assignment and initial_reward_learning_iterations == 1
-                        print("RUNNING DATASET IN ASSIGNMENT:", running_dataset_in_assignment, global_iter)
-                        print(not condition_avoid_selection or not disable_selection_after_initial_reward_iterations)
-
-                        input()"""
-                if not condition_avoid_selection or not disable_selection_after_initial_reward_iterations:
-                    self.update_training_networks_from_assignment(
-                        self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
-                if self.static_weights:
-                    self.loss.set_parameters(params_gr=self.optim.params_gr, params_vs=set(
-                    ), optim_state=self.optim.get_state())
-                    self.current_assignment.weights_per_cluster = self.value_system_per_cluster
-                    assert np.allclose(np.array(self.current_assignment.value_systems), np.array(self.get_value_systems(
-                    ))), f"Static weights mismatch: {self.current_assignment.value_systems} vs {self.get_value_systems()}"
-                    assert np.allclose(np.array(self.current_assignment.value_systems), self.mobaselines_agent.agent_mobaselines.sample_eval_weights(
-                        self.Lmax)), f"Static weights mismatch: {self.current_assignment.value_systems} vs {self.mobaselines_agent.agent_mobaselines.sample_eval_weights(self.Lmax)}"
-                self.set_mode('train')
-                # self.current_assignment.certify_cluster_assignment_consistency()
-                for cycle in range(em_cycles_per_iteration):
-                    steps_now = initial_m_steps_per_cycle if cycle == 0 else m_steps_per_cycle
-                    # self.current_assignment.certify_cluster_assignment_consistency()
-                    # and (self.Lmax > 1 or global_iter == 0):
-                    if allow_clusterize and (((not mutated) or cycle >= 1) or (condition_using_base and disable_selection_after_initial_reward_iterations) or condition_avoid_selection):
-                        self.cluster_assignment(base_dataset, running_dataset=running_dataset_in_assignment,
-                                                batch_size_in_running_dataset_for_cluster_assignment=batch_size_in_running_dataset_for_cluster_assignment, qualitative_cluster_assignment=False)  # E-step
-                    #print(self.current_assignment.assignments_vs)
-                    assert len(self.current_assignment.weights_per_cluster) == self.current_assignment.Lmax
-                    if not allow_clusterize:
-                        assert all([len(assign)==1 for assign in self.current_assignment.assignments_vs]), "PBMORL requires each agent to be in its own cluster."
-                   
-                    # self.current_assignment.certify_cluster_assignment_consistency()
-                    train_losses = self.train_reward_models(train_set, global_step=self.global_step,
-                                                            n_optim_steps=steps_now, batch_size_per_agent=batch_size_per_agent, transitions=use_transitions)  # M-step
-                    if self.static_weights:
-                        assert np.allclose(np.array(self.current_assignment.value_systems), self.mobaselines_agent.agent_mobaselines.sample_eval_weights(
-                            self.Lmax)), f"Static weights mismatch: {self.current_assignment.value_systems} vs {self.get_value_systems()}"
-                    # self.current_assignment.certify_cluster_assignment_consistency()
-                    if cycle == em_cycles_per_iteration - 1:
-                        if self.use_wandb:
-                            self.wandb_log_losses(global_iter, train_losses)
-                    with th.no_grad():
-                        self.current_assignment.n_training_steps += steps_now
-                        self.current_assignment.optimizer_state = self.optim.get_state(
-                            copy=True)
-                        original.optimizer_state = self.optim.get_state(
-                            copy=True)
-                        self.global_step += steps_now
-                        # self.current_assignment.certify_cluster_assignment_consistency()
-
-                self.set_mode('eval')
-                with th.no_grad():
-                    # self.current_assignment.weights_per_cluster = deepcopy(self.value_system_per_cluster)
-                    # self.current_assignment.grounding = deepcopy(self.train_reward_net)
-                    self.current_assignment.recalculate_discordances(
-                        val_set, indifference_tolerance=self.loss.model_indifference_tolerance)
-                    # self.current_assignment.certify_cluster_assignment_consistency()
-                    if mutated or is_protected:
-                        best_assignments_list.insert_assignment(
-                            self.current_assignment)
-                    else:
-                        best_assignments_list.notify_updated_assignment(
-                            self.current_assignment)
-                    if self.debug_mode:
-                        print(best_assignments_list)
-                    if min(self.current_assignment.coherence()) >= accuracy_needed:
-                        if self.current_assignment.representativity_vs() >= accuracy_needed:
-                            print(
-                                f"Early stopping at iteration {it} with coherence {self.current_assignment.coherence()} and representativity {self.current_assignment.representativity_vs()}")
-                            t_iterations.update(it+1)
-                            break
-
-                t_iterations.update(1)
-
-        if continue_with_best_cluster and not condition_avoid_selection:
-            self.current_assignment = best_assignments_list.get_best_assignment(
-                lexicographic_vs_first=False)[0].copy()
-            self.current_assignment.recalculate_discordances(
-                val_set, indifference_tolerance=self.loss.model_indifference_tolerance)
-            self.current_assignment.certify_cluster_assignment_consistency()
-            self.update_training_networks_from_assignment(
-                self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
-            self.current_assignment.grounding = self.train_reward_net
-            self.current_assignment.weights_per_cluster = self.value_system_per_cluster
-        self.set_mode('eval')
-        return {'reward_net': self.train_reward_net, 'running_assignment': self.current_assignment, 'global_iter': global_iter+initial_reward_learning_iterations}
-
-    def _pbmorl_reward_train_callback(self, base_dataset,
-                                      running_dataset,
-                                      reward_vector_function, m_steps_per_cycle, batch_size_reward_buffer, global_iter, best_assignments_list, assume_no_copies=False):
-        condition = self.mobaselines_agent.agent_mobaselines.global_step < self.mobaselines_agent.agent_mobaselines.learning_starts
-        if condition:
-            print(f"{Fore.GREEN}USING BASE, {self.mobaselines_agent.agent_mobaselines.global_step}/{self.mobaselines_agent.agent_mobaselines.learning_starts}{Style.RESET_ALL}")
-        else:
-            print(f"{Fore.RED}USING REPLAY, {self.mobaselines_agent.agent_mobaselines.global_step}/{self.mobaselines_agent.agent_mobaselines.learning_starts}{Style.RESET_ALL}")
-        train_set = base_dataset if condition else running_dataset
-        val_set = base_dataset
-        
-        if not assume_no_copies:
-            self.current_assignment.grounding = self.train_reward_net
-            self.update_training_networks_from_assignment(
-                self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
-            self.current_assignment.weights_per_cluster = self.value_system_per_cluster
-        assert len(
-            self.value_system_per_cluster) == self.current_assignment.Lmax, f"Value systems length mismatch: {len(self.value_system_per_cluster)} vs {self.current_assignment.Lmax}"
-
-        assert isinstance(
-            train_set, VSLPreferenceDataset), "Train set must be a VSLPreferenceDataset"
-        assert isinstance(
-            val_set, VSLPreferenceDataset), "Validation set must be a VSLPreferenceDataset"
-        assert self.train_reward_net == reward_vector_function
-        self.set_mode('train')
-        # "sample minibatch", with their own weights...
-        
-        # self.current_assignment.certify_cluster_assignment_consistency()
-        assert all(p.requires_grad for p in self.optim.params_gr)
-        if self.static_weights:
-            assert len(self.optim.params_vs) == 0
-        else:
-            assert all(p.requires_grad for p in self.optim.params_vs)
-
-        # prev_params = deepcopy(self.optim.params_gr)
-        check_grounding_value_system_networks_consistency_with_optim(
-            self.train_reward_net, self.value_system_per_cluster, self.optim, only_grounding=self.static_weights)
-        train_losses = self.train_reward_models_no_clusters(train_set,
-                                                            global_step=self.global_step,
-                                                            n_optim_steps=m_steps_per_cycle,
-
-                                                            batch_size_reward_buffer=batch_size_reward_buffer)  # M-step
-        if self.use_wandb:
-            self.wandb_log_losses(global_iter, train_losses)
-
-        self.global_step += m_steps_per_cycle
-        assert len(
-            self.value_system_per_cluster) == self.current_assignment.Lmax, f"Value systems length mismatch: {len(self.value_system_per_cluster)} vs {self.current_assignment.Lmax}"
-
-        if self.global_step % 10*m_steps_per_cycle == 0:
-            self.current_assignment = self.cluster_assignment(
-                val_set, qualitative_cluster_assignment=False)
-            self.current_assignment.n_training_steps += m_steps_per_cycle
-            self.current_assignment.optimizer_state = self.optim.get_state()
-            self.current_assignment.recalculate_discordances(
-                dataset=base_dataset, indifference_tolerance=self.loss.model_indifference_tolerance)
-            print("At iteration", global_iter,
-                  "cluster assignment:", self.current_assignment)
-            self.current_assignment.certify_cluster_assignment_consistency()
-
-        best_assignments_list.insert_assignment(self.current_assignment.copy())
-        return {'reward_net': self.train_reward_net}
-
-
     
     @staticmethod
     def load_from_state(best_assignment_list, historic, policy, global_step, config):
@@ -398,7 +147,55 @@ class PVSL(object):
         for w in reference_assignment.weights_per_cluster:
             w.requires_grad_(False)
 
-    def update_training_networks_from_assignment(self, value_system_per_cluster: List[LinearAlignmentLayer], grounding: VectorModule, reference_assignment: ClusterAssignment, only_grounding: bool = False):
+
+    def update_optim_from_networks(self, value_system_per_cluster: List[LinearAlignmentLayer]=None, grounding: VectorModule=None, only_grounding: bool = False, optimizer_state: Dict[str, Any] = None):
+        
+        assert isinstance(self.loss, VSLCustomLoss)
+        assert isinstance(self.optim, VSLOptimizer)
+        if grounding is None and value_system_per_cluster is None:
+            raise ValueError("At least one of grounding or value_system_per_cluster must be provided.")
+        
+        if grounding is not None:
+            self.optim.params_gr = {
+                param for param in grounding.parameters()}
+        if only_grounding:
+            self.optim.params_vs = set()
+        elif value_system_per_cluster is not None:
+            self.optim.params_vs = {
+                param for al in value_system_per_cluster for param in al.parameters()}
+
+        if self.debug_mode:
+            if grounding is not None:
+                should_be_wx = {param for param in grounding.parameters()}
+
+                assert should_be_wx.issubset(
+                    self.optim.params_gr), "Mismatch in wx parameters"
+                assert self.optim.params_gr == {
+                    param for param in grounding.parameters()}, "Mismatch in wx parameters"
+
+            if not only_grounding and value_system_per_cluster is not None:
+                should_be_wy = {
+                    param for al in value_system_per_cluster for param in al.parameters()}
+                assert should_be_wy.issubset(
+                    self.optim.params_vs), "Mismatch in wy parameters"
+
+                assert self.optim.params_vs == {
+                    param for network in value_system_per_cluster for param in network.parameters()}, "Mismatch in wy parameters"
+        
+        if optimizer_state is None:
+            optimizer_state = self.optim.get_state()
+        self.optim: VSLOptimizer = self.optim_class(
+            **self.optim_kwargs, params_gr=self.optim.params_gr, params_vs=self.optim.params_vs, n_values=self.grounding_network.num_outputs)
+        self.optim.set_state(optimizer_state)
+        self.loss.set_parameters(
+            params_gr=self.optim.params_gr, params_vs=self.optim.params_vs, optim_state=self.optim.get_state())
+        if self.debug_mode:
+
+            # Ensure optimizer consistency
+            check_grounding_value_system_networks_consistency_with_optim(
+                grounding, value_system_per_cluster, self.optim, only_grounding)
+                
+    def update_training_networks_from_assignment(self, value_system_per_cluster: List[LinearAlignmentLayer]=None, grounding: VectorModule=None, reference_assignment: ClusterAssignment=None, only_grounding: bool = False):
 
         with th.no_grad():
             if len(value_system_per_cluster) < reference_assignment.Lmax:
@@ -430,46 +227,9 @@ class PVSL(object):
             grounding.load_state_dict(
                 deepcopy(reference_assignment.grounding.state_dict()))
 
-            if isinstance(self.loss, VSLCustomLoss):
-                assert isinstance(self.optim, VSLOptimizer)
-
-                self.optim.params_gr = {
-                    param for param in grounding.parameters()}
-                if only_grounding:
-                    self.optim.params_vs = set()
-                else:
-                    self.optim.params_vs = {
-                        param for al in value_system_per_cluster for param in al.parameters()}
-
-                if self.debug_mode:
-                    should_be_wx = {param for param in grounding.parameters()}
-
-                    assert should_be_wx.issubset(
-                        self.optim.params_gr), "Mismatch in wx parameters"
-                    assert self.optim.params_gr == {
-                        param for param in grounding.parameters()}, "Mismatch in wx parameters"
-
-                    if not only_grounding:
-                        should_be_wy = {
-                            param for al in value_system_per_cluster for param in al.parameters()}
-                        assert should_be_wy.issubset(
-                            self.optim.params_vs), "Mismatch in wy parameters"
-
-                        assert self.optim.params_vs == {
-                            param for network in value_system_per_cluster for param in network.parameters()}, "Mismatch in wy parameters"
-                self.optim: VSLOptimizer = self.optim_class(
-                    **self.optim_kwargs, params_gr=self.optim.params_gr, params_vs=self.optim.params_vs, n_values=self.grounding_network.num_outputs)
-                self.optim.set_state(reference_assignment.optimizer_state)
-                self.loss.set_parameters(
-                    params_gr=self.optim.params_gr, params_vs=self.optim.params_vs, optim_state=self.optim.get_state())
-            else:
-                raise SystemError(
-                    "Loss class must be VSLCustomLoss to use this method.")
-            if self.debug_mode:
-
-                # Ensure optimizer consistency
-                check_grounding_value_system_networks_consistency_with_optim(
-                    grounding, value_system_per_cluster, self.optim, only_grounding)
+            self.update_optim_from_networks(value_system_per_cluster, grounding, only_grounding, optimizer_state=reference_assignment.optimizer_state)
+            
+            
 
     def get_value_systems(self) -> List[Tuple[float]]:
         """
@@ -702,13 +462,8 @@ class PVSL(object):
         assert not self.mobaselines_agent.is_single_objective
         if not clustered_variant:
             self.Lmax = dataset.n_agents
-        self.static_weights = static_weights
         self.policy_train_kwargs = policy_train_kwargs
-        self.K = K
-        self.Ns = Ns
-        self.Nw = Nw
-
-        self.policy_train_kwargs = policy_train_kwargs
+        
         # if online_policy_update else self.policy_train_kwargs['total_timesteps']
         policy_iterations = self.policy_train_kwargs['total_timesteps'] // max_iter
         self.policy_train_kwargs['total_timesteps'] = policy_iterations
@@ -719,8 +474,10 @@ class PVSL(object):
 
         dataset.transition_mode(self.device)
 
+        
         for global_iter in range(resume_from, max_iter):
             if global_iter == 0:
+                # Initial iteration
                 self.policy_train_kwargs['reset_learning_starts'] = False
                 self.policy_train_kwargs['reset_num_timesteps'] = True
                 with th.no_grad():
@@ -738,89 +495,66 @@ class PVSL(object):
                     self.policy_train_kwargs['reference_assignment'] = self.current_assignment
                     assert set(self.current_assignment.agent_to_vs_cluster_assignments.keys()) == set(
                         list(dataset.agent_data.keys()))
-
-            elif resume_from == global_iter:
-                self.policy_train_kwargs['reset_learning_starts'] = False
-                self.policy_train_kwargs['reset_num_timesteps'] = False
-
-                best_assignments_list, historic, self.mobaselines_agent, final_global_step, config = PVSL.load_state(
-                    ename=experiment_name, agent_name=self.mobaselines_agent.name,
-                    ref_env=self.train_env, ref_eval_env=self.eval_env
-                )
-                self.current_assignment = historic[global_iter]
-                # approximated global step...
-                self.global_step = math.floor(
-                    global_iter/len(historic))*final_global_step
-                self.update_training_networks_from_assignment(
-                    self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=False)
-                self.policy_train_kwargs['reference_assignment'] = self.current_assignment
-                # self.Lmax = self.current_assignment.Lmax
+                    replay_buffer_dataset = FixedLengthVSLPreferenceDataset(self.train_reward_net.num_outputs, single_agent=False, size= max_reward_buffer_size) if self.running_dataset is None else self.running_dataset
+       
+                    if clustered_variant:
+                        # INITIALIZATION OF SVSL-P using ALGORITHM S2. # + REFACTOR???
+                        self.expectation_maximization(dataset, max_iter, m_steps_per_cycle, batch_size_in_running_dataset_for_cluster_assignment, initial_exploration_rate, initial_reward_learning_iterations, mutation_prob, mutation_scale, batch_size_per_agent, lexicographic_vs_first, em_cycles_per_iteration, global_iter, best_assignments_list)
+                        
             else:
                 self.policy_train_kwargs['reset_learning_starts'] = False
                 self.policy_train_kwargs['reset_num_timesteps'] = False
-                if clustered_variant:
-                    self.update_training_networks_from_assignment(
-                        self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
-                    self.policy_train_kwargs['reference_assignment'] = self.current_assignment
+                
+                    
 
             # self.Lmax = self.current_assignment.Lmax
             # self.update_training_networks_from_assignment(self.value_system_per_cluster, self.train_reward_net, self.current_assignment)
-
-            self.current_assignment.grounding = self.train_reward_net
-            if clustered_variant:
-                self.current_assignment.weights_per_cluster = self.value_system_per_cluster
-            if not clustered_variant:
-                self.update_training_networks_from_assignment(
-                    self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
-
+            
             # self.current_assignment.recalculate_discordances(dataset=dataset, indifference_tolerance=self.loss.model_indifference_tolerance)
+            ###############################
+            if self.global_step % K == 0:
+                
+                if self.global_step < self.mobaselines_agent.agent_mobaselines.learning_starts:
+                    print(f"{Fore.GREEN}USING STATIC DATASET, {self.global_step}/{self.mobaselines_agent.agent_mobaselines.learning_starts}{Style.RESET_ALL}")
+                    train_set = dataset
+                    val_set = dataset # TODO. Probably should be a separate validation set...
+                else:
+                    print(f"{Fore.RED}USING REPLAY BUFFER, {self.global_step}/{self.mobaselines_agent.agent_mobaselines.learning_starts}{Style.RESET_ALL}")
+                    
+                    # TODO Overseer...
+                    
+                    train_set = replay_buffer_dataset
 
-            self.mobaselines_agent.agent_mobaselines = train_Agent
-            self.mobaselines_agent.policy.set_agent_baselines(train_Agent)
-            self.mobaselines_agent.set_reward_vector_function(
-                self.train_reward_net)
-            sp = get_signature_params(
-                train_Agent.train, self.policy_train_kwargs)
-            self.set_mode('eval')
-            train_Agent.train(Ns=Ns, Nw=Nw, K=K, eval_env=self.eval_env,
-                              gamma_preferences=discount_factor_preferences,
-                              dataset=dataset,
-                              H=H,
-                              max_reward_buffer_size=max_reward_buffer_size,
-                              reward_train_callback=partial(self._pbmorl_reward_train_callback,
-                                                            global_iter=global_iter,
+                    val_set = dataset
 
-                                                            m_steps_per_cycle=m_steps_per_cycle,
-                                                            batch_size_reward_buffer=batch_size_reward_buffer,
-                                                            best_assignments_list=best_assignments_list) if not clustered_variant else 
-                                                    partial(self._clustered_pbmorl_reward_train_callback,
-                                                            global_iter=global_iter,
-                                                            batch_size_in_running_dataset_for_cluster_assignment=batch_size_in_running_dataset_for_cluster_assignment,
-                                                            use_running_dataset_in_assignment=use_running_dataset_in_assignment,
-                                                            initial_reward_learning_iterations=initial_reward_learning_iterations,
-                                                            initial_m_steps_per_cycle=initial_m_steps_per_cycle,
-                                                            initial_exploration_rate=initial_exploration_rate,
-                                                            em_cycles_per_iteration=em_cycles_per_iteration,
-                                                            mutation_prob=mutation_prob,
-                                                            mutation_scale=mutation_scale,
-                                                            batch_size_per_agent=batch_size_per_agent,
-                                                            lexicographic_vs_first=lexicographic_vs_first,
-                                                            max_iter=max_iter,
-                                                            m_steps_per_cycle=m_steps_per_cycle,
-                                                            disable_selection_after_initial_reward_iterations=True,
-                                                            best_assignments_list=best_assignments_list, continue_with_best_cluster=False),
-                              **sp)
+                
+                # EXPECTATION MAXIMIZATION
+                # TODO: GET FROM ABOVE. 
+                self.expectation_maximization(dataset, max_iter, m_steps_per_cycle, batch_size_in_running_dataset_for_cluster_assignment, initial_exploration_rate, initial_reward_learning_iterations, mutation_prob, mutation_scale, batch_size_per_agent, lexicographic_vs_first, em_cycles_per_iteration, global_iter, best_assignments_list)
+
+                
+                                
+
+            ###############################
+            
+            #########
+
+            # POLICY UPDATE
+            #######
+
+            if self.global_step/self.policy_train_kwargs['total_timesteps'] > PORCENTAJE `1?? TODO`:
+                steps_to_add = ((global_iter + 1)/max_iter)*self.policy_train_kwargs['total_timesteps'] - self.global_step
+                self.policy_train_kwargs['total_timesteps'] = int(
+                    self.policy_train_kwargs['total_timesteps'] + steps_to_add)
             self.mobaselines_agent.policy.set_agent_baselines(train_Agent)
             assert self.current_assignment.grounding == self.train_reward_net
             self.mobaselines_agent.set_reward_vector_function(
                 self.train_reward_net)
-
             best = best_assignments_list.get_best_assignment(
                 lexicographic_vs_first=False)[0]
             assert best.Lmax == self.Lmax == len(
                 self.value_system_per_cluster) == self.current_assignment.Lmax
-            if not clustered_variant:
-                assert best.Lmax == dataset.n_agents
+            assert best.Lmax == dataset.n_agents
             PVSL.save_state(ename=experiment_name, best_assignments_list=best_assignments_list, historic_dict={
                             global_iter: best}, policy_per_cluster=self.mobaselines_agent, global_step=self.global_step, save_config=self.init_config())
 
@@ -828,6 +562,89 @@ class PVSL(object):
             ename=experiment_name, agent_name=self.mobaselines_agent.name, ref_env=self.train_env, ref_eval_env=self.eval_env)
 
         return best_assignments_list, historic, self.mobaselines_agent
+
+    def expectation_maximization(self, dataset, max_iter, m_steps_per_cycle, batch_size_in_running_dataset_for_cluster_assignment, initial_exploration_rate, initial_reward_learning_iterations, mutation_prob, mutation_scale, batch_size_per_agent, lexicographic_vs_first, em_cycles_per_iteration, global_iter, best_assignments_list):
+        if isinstance(initial_reward_learning_iterations, str):
+            _, accuracy_needed = initial_reward_learning_iterations.split(':')
+            accuracy_needed = float(accuracy_needed)
+            initial_reward_learning_iterations = 10000
+        else:
+            accuracy_needed = 1.0
+
+        acc = 0.0
+        while acc < accuracy_needed:
+            self.current_assignment, original, mutated, is_protected = self.selection(best_assignments_list,
+                                                                                                lexicographic_vs_first=lexicographic_vs_first,
+                                                                                                num_iterations=max_iter,
+                                                                                                iter_now=global_iter,
+                                                                                                initial_exploration_rate=initial_exploration_rate, mutation_prob=mutation_prob, mutation_scale=mutation_scale, dataset=base_dataset)
+            self.update_training_networks_from_assignment(
+                                        self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
+                            
+            for cycle in range(em_cycles_per_iteration):
+                steps_now = m_steps_per_cycle
+                                
+                if self.debug_mode and self.static_weights:
+                    assert self.current_assignment.weights_per_cluster == self.value_system_per_cluster
+                    assert self.optim.params_vs == set()
+                    assert np.allclose(np.array(self.current_assignment.value_systems), np.array(self.get_value_systems(
+                                    ))), f"Static weights mismatch: {self.current_assignment.value_systems} vs {self.get_value_systems()}"
+                    assert np.allclose(np.array(self.current_assignment.value_systems), self.mobaselines_agent.agent_mobaselines.sample_eval_weights(
+                                        self.Lmax)), f"Static weights mismatch: {self.current_assignment.value_systems} vs {self.mobaselines_agent.agent_mobaselines.sample_eval_weights(self.Lmax)}"
+                                
+                                # E- STEP (not done after mutations)
+                if not mutated or cycle >= 1:
+                    self.current_assignment = self.cluster_assignment(dataset, running_dataset=None,
+                                                    batch_size_in_running_dataset_for_cluster_assignment=batch_size_in_running_dataset_for_cluster_assignment, qualitative_cluster_assignment=False) 
+                                
+                assert len(self.current_assignment.weights_per_cluster) == self.current_assignment.Lmax
+                                
+                                # self.current_assignment.certify_cluster_assignment_consistency()
+                self.set_mode('train')
+                train_losses = self.train_reward_models(train_set, global_step=self.global_step,
+                                                                        n_optim_steps=steps_now, batch_size_per_agent=batch_size_per_agent, clusterizing=True)  # M-step
+                                
+
+                if self.static_weights:
+                    assert np.allclose(np.array(self.current_assignment.value_systems), self.mobaselines_agent.agent_mobaselines.sample_eval_weights(
+                                        self.Lmax)), f"Static weights mismatch: {self.current_assignment.value_systems} vs {self.get_value_systems()}"
+                                # self.current_assignment.certify_cluster_assignment_consistency()
+                if cycle == em_cycles_per_iteration - 1:
+                    if self.use_wandb:
+                        self.wandb_log_losses(global_iter, train_losses)
+                with th.no_grad():
+                    self.current_assignment.n_training_steps += steps_now
+                    self.current_assignment.optimizer_state = self.optim.get_state(
+                                        copy=True)
+                    original.optimizer_state = self.optim.get_state(
+                                        copy=True)
+                    self.global_step += steps_now
+            self.set_mode('eval')
+            with th.no_grad():
+                                # self.current_assignment.weights_per_cluster = deepcopy(self.value_system_per_cluster)
+                                # self.current_assignment.grounding = deepcopy(self.train_reward_net)
+                self.current_assignment.recalculate_discordances(
+                                    val_set, indifference_tolerance=self.loss.model_indifference_tolerance)
+                                # self.current_assignment.certify_cluster_assignment_consistency()
+                if mutated or is_protected:
+                    best_assignments_list.insert_assignment(
+                                        self.current_assignment)
+                else:
+                    best_assignments_list.notify_updated_assignment(
+                                        self.current_assignment)
+                if self.debug_mode:
+                    print(best_assignments_list)
+                acc = min(min(self.current_assignment.coherence()), self.current_assignment.representativity_vs())
+                assert self.current_assignment.grounding == self.train_reward_net
+                assert self.current_assignment.weights_per_cluster == self.value_system_per_cluster
+                assert self.current_assignment.optimizer_state == self.optim.get_state(), f"Optimizer state mismatch after initialization. {self.current_assignment.optimizer_state} vs {self.optim.get_state()}"
+                                
+        print("FINISHED INITIALIZATION PHASE WITH ACCURACY =", acc)
+        print(self.current_assignment)
+        self.update_training_networks_from_assignment(
+                            self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
+        self.policy_train_kwargs['reference_assignment'] = self.current_assignment
+        exit(0)
 
     def train_pc(self, experiment_name: str, dataset: VSLPreferenceDataset, max_iter: int,
                  em_cycles_per_iteration: int, initial_m_steps_per_cycle: int, m_steps_per_cycle: int, mutation_prob: float, mutation_scale: float, initial_exploration_rate: float, batch_size_per_agent: int,
@@ -1249,7 +1066,7 @@ class PVSL(object):
             self.train_reward_net, self.value_system_per_cluster, self.optim, only_grounding=self.static_weights)
         # check_grounding_value_system_networks_consistency_with_optim(self.current_assignment.grounding, self.current_assignment.weights_per_cluster, self.optim, only_grounding=True, copies=True)
 
-    def train_reward_models_no_clusters(self, dataset, global_step, n_optim_steps, batch_size_reward_buffer=32):
+    def train_reward_models(self, dataset, global_step, n_optim_steps, batch_size_reward_buffer=32, clusterizing=False):
         train_losses = []
 
         self.set_mode('train')
@@ -1262,125 +1079,92 @@ class PVSL(object):
         for sum_ensemble in range(self.train_reward_net.n_models):
             self.train_reward_net.use_models(sum_ensemble)
             for i in range(n_optim_steps):
-                optim_step = global_step + i
                 with th.no_grad():
                     dataset: VSLPreferenceDataset
-                    t = time.time()
                     dataset_b, fids_per_agent = dataset.select_batch(
                         batch_size_reward_buffer, transitions=False, device=self.train_reward_net.device, per_agent=not self.static_weights)
 
                     fragments1, fragments2, preferences, preferences_with_grounding, agent_ids = dataset_b
-                    rt = time.time()
-                    # print(f"\033[33mBATCH SELECT back took {rt-t:.4f} seconds for {len(fragments1),} frags and {len(set(agent_ids))}agent\033[0m")
+                
 
-                # print("AGENT IDS. SHOULD GROUP THEM ACCORDING TO WEIGHTS, THEN...", agent_ids)
-                t = time.time()
-                unique_agent_ids = OrderedSet(agent_ids)
-                cluster_fidxs = [[] for _ in range(len(unique_agent_ids))]
-                agent_to_vs_cluster_assignments = dict()
-                assignments_vs = [[] for _ in range(len(unique_agent_ids))]
-                for iag, ag in enumerate(unique_agent_ids):
-                    fidxsag = fids_per_agent.get(ag, [])
-                    # print("AGENT", ag, "fidxs", fidxsag)
-                    # assert fragments1[fidxsag][0].agent in ag, f"Fragment {fragments1[fidxsag][0].agent} does not match agent {ag} in fidxs_per_agent."
-                    cluster_fidxs[int(iag)].extend(fidxsag)
-                    agent_to_vs_cluster_assignments[ag] = int(iag)
-                    assignments_vs[int(iag)] = [ag]
-
-                # print(len(weights_per_cluster), len(cluster_fidxs), len(assignments_vs), len(agent_to_vs_cluster_assignments))
-                if self.static_weights:
-                    weights_new = [parse_or_invent_alignment_function_from_name(
-                        agname, self.train_reward_net.num_outputs) for agname in unique_agent_ids]
+                if not clusterizing:
+                    unique_agent_ids = OrderedSet(agent_ids)
+                    cluster_fidxs = [[] for _ in range(len(unique_agent_ids))]
+                    agent_to_vs_cluster_assignments = dict()
+                    assignments_vs = [[] for _ in range(len(unique_agent_ids))]
+                    weights_new = []
+                    for iag, ag in enumerate(unique_agent_ids):
+                        fidxsag = fids_per_agent.get(ag, [])
+                        # print("AGENT", ag, "fidxs", fidxsag)
+                        # assert fragments1[fidxsag][0].agent in ag, f"Fragment {fragments1[fidxsag][0].agent} does not match agent {ag} in fidxs_per_agent."
+                        cluster_fidxs[int(iag)].extend(fidxsag)
+                        agent_to_vs_cluster_assignments[ag] = int(iag)
+                        assignments_vs[int(iag)] = [ag]
+                        weights_new.append(parse_or_invent_alignment_function_from_name(
+                            ag, self.train_reward_net.num_outputs))
+                        
                     weights_per_cluster = [create_alignment_layer(weights_new[iag], self.alignment_layer_class, self.alignment_layer_kwargs).requires_grad_(
-                        False) for iag in range(len(unique_agent_ids))]
-                else:
-                    weights_per_cluster = [self.value_system_per_cluster[iag] for iag in range(len(unique_agent_ids))]
+                            False) for iag in range(len(unique_agent_ids))]
+                else:     
+                # print(len(weights_per_cluster), len(cluster_fidxs), len(assignments_vs), len(agent_to_vs_cluster_assignments))
+                    weights_per_cluster = self.value_system_per_cluster
+                    assert all(self.get_value_systems() == self.current_assignment.value_systems), "Value systems in current assignment and trainer do not match."
+                    cluster_fidxs = [list()
+                                     for _ in self.current_assignment.assignments_vs]
+                    for ag, fidxsag in fids_per_agent.items():
+                        # print(self.current_assignment.agent_to_vs_cluster_assignments.keys())
+                        # assert fragments1[fidxsag][0].agent in ag, f"Fragment {fragments1[fidxsag][0].agent} does not match agent {ag} in fidxs_per_agent."
+                        cluster_fidxs[int(
+                            self.current_assignment.agent_to_vs_cluster_assignments[ag])].extend(fidxsag)
+                
+                # print(len(fragments1[0]))
+                
                 # input()
-                rt = time.time()
+                
                 # print(f"\033[Create layers callback took {rt-t:.4f} seconds\033[0m")
-                optimizer_state = self.optim.get_state()
-                dummy_assignment = ClusterAssignment(
-                    weights_per_cluster, self.train_reward_net, agent_to_vs_cluster_assignments=agent_to_vs_cluster_assignments, assignments_vs=assignments_vs)
-                dummy_assignment.optimizer_state = optimizer_state
-                dummy_assignment.n_training_steps = optim_step
-                self.update_training_networks_from_assignment(
-                    dummy_assignment.weights_per_cluster, self.train_reward_net, dummy_assignment, only_grounding=True)
+                self.update_optim_from_networks(
+                     weights_per_cluster, grounding=self.train_reward_net, only_grounding=self.static_weights)
+                check_grounding_value_system_networks_consistency_with_optim(
+                    self.train_reward_net, self.value_system_per_cluster, self.optim, only_grounding=self.static_weights, check_grads=True)
 
-                t = time.time()
-                if __debug__:
-                    prev_params_vs = deepcopy(
-                        dummy_assignment.weights_per_cluster)
-                    prev_params_gr = deepcopy(OrderedSet(
-                        self.train_reward_net.rewards[sum_ensemble].parameters()))
-                rt = time.time()
+                    
                 # print(f"\033[33mPREV PARAMS. BATCH SELECT back took {rt-t:.4f} seconds\033[0m {self.loss.per_agent}")
                 self.optim.zero_grad()
                 assert th.is_grad_enabled()
                 # print(len(fragments1[0]))
-                t = time.time()
                 output = self.loss.forward(fragments1=fragments1, fragments2=fragments2,
                                            reward_vector_module=self.train_reward_net,
-                                           weights_per_cluster=dummy_assignment.weights_per_cluster,
+                                           weights_per_cluster=weights_per_cluster,
                                            cluster_fidxs=cluster_fidxs,
                                            fidxs_per_agent=fids_per_agent,
                                            preferences=util.safe_to_tensor(
                                                preferences, dtype=self.train_reward_net.desired_dtype).requires_grad_(False),
                                            preferences_with_grounding=util.safe_to_tensor(preferences_with_grounding, dtype=self.train_reward_net.desired_dtype).requires_grad_(False))
                 loss_vs, loss_gr, loss_gr_per_vi = output.loss
-                rt = time.time()
+                
                 # print(f"\033[33m FORWARD back took {rt-t:.4f} seconds\033[0m")
                 loss = loss_vs + loss_gr  # + loss_policy??? TODO.
                 renormalization = 1.0
-                """if batch_size_reward_buffer != 'full':
-                    if isinstance(batch_size_reward_buffer , float):
-                        renormalization = batch_size_reward_buffer*len(dataset)
-                    else:
-                        renormalization = batch_size_reward_buffer/math.ceil(len(dataset))
-                print("R", renormalization)"""
 
                 self.loss.gradients(
                     scalar_loss=loss, renormalization=renormalization)
                 rt = time.time()
                 # print(f"\033[33m GRADIENTS AND FORWARD back took {rt-t:.4f} seconds\033[0m")
-                if __debug__:
-                    next_params_vs = dummy_assignment.weights_per_cluster
-                    next_params_gr = OrderedSet(
-                        self.train_reward_net.rewards[sum_ensemble].parameters())
-
-                    for p, g in zip(next_params_vs, prev_params_vs):
-                        assert all([gi.grad is None for gi in g.parameters(
-                        )]), "Gradients must NOT be computed for THESE parameters."
-                        assert all([pi.grad is None for pi in p.parameters(
-                        )]), "Gradients must NOT be computed for THESE parameters."
-                    for p, g in zip(next_params_gr, prev_params_gr):
-                        assert p.grad is not None, "Gradients must be computed for THESE parameters."
-                        assert g.grad is None, "Gradients must NOT be computed for THESE parameters."
                 self.optim.step()
-
-                if __debug__:
-                    next_params_vs = dummy_assignment.weights_per_cluster
-                    for p, g in zip(next_params_vs, prev_params_vs):
-                        assert th.allclose(p.weight, g.weight)
-                    for p, g in zip(next_params_gr, prev_params_gr):
-                        assert th.allclose(
-                            p, g) == False, "Grounding network parameters did not change after optimization step."
-
                     # assert set(next_params_vs) == set(prev_params_vs) # "Value system parameters did not change after optimization step."
                 gr_norm = get_grad_norm(self.train_reward_net.parameters())
                 vs_norm = get_grad_norm(
                     [p for vs in self.value_system_per_cluster for p in vs.parameters()])
-
-                self.optim.zero_grad()
-
+                
                 train_losses.append((loss_vs.detach().item(), loss_gr.detach(
                 ).item(), vs_norm.detach().item(), gr_norm.detach().item()))
 
         # Perform sum over each array in each tuple inside train_losses:
         train_losses = [np.sum([x[i] for x in train_losses]) /
                         self.train_reward_net.n_models for i in range(len(train_losses[0]))]
-        self.update_assignment_from_trained_networks(
-            self.current_assignment, trained_reward_net=self.train_reward_net, weights=self.value_system_per_cluster, only_grounding=self.static_weights)
-
+        
+        
+        
         vs_new = self.get_value_systems()
         assert all([all(np.array(w1) == np.array(w2)) for w1, w2 in zip(
             vs_prev, vs_new)]), "Value systems changed during training, but they should not have."
@@ -1392,10 +1176,14 @@ class PVSL(object):
             # input()
 
         self.train_reward_net.use_models('all')
+        self.update_assignment_from_trained_networks(
+                    self.current_assignment, trained_reward_net=self.train_reward_net, weights=self.value_system_per_cluster, only_grounding=self.static_weights)
+        self.current_assignment.n_training_steps += n_optim_steps
+        self.current_assignment.optimizer_state = self.optim.get_state()
         self.set_mode('eval')
         return train_losses
 
-    def train_reward_models(self, dataset: VSLPreferenceDataset, global_step, n_optim_steps, batch_size_per_agent='full', transitions=True, alternative_dataset=None, percentage_from_alternative_dataset=0.2):
+    def train_reward_models_old(self, dataset: VSLPreferenceDataset, global_step, n_optim_steps, batch_size_per_agent='full', transitions=True, alternative_dataset=None, percentage_from_alternative_dataset=0.2):
         # self.loss.set_parameters(params_gr=self.optim.params_gr, params_vs=self.optim.params_vs, optim_state=self.optim.get_state())
         # print("TRmodels", [w.get_alignment_layer()[0] for w in self.value_system_per_cluster])
         # print("Current assignment:", self.current_assignment.value_systems)
@@ -1406,9 +1194,6 @@ class PVSL(object):
               dataset.n_agents, "BATCH SIZE", batch_size_per_agent)
         print(set(dataset.l_agent_ids))
         
-
-        self.update_training_networks_from_assignment(
-            self.value_system_per_cluster, self.train_reward_net, self.current_assignment, only_grounding=self.static_weights)
 
         # splits = dataset.k_fold_split(self.train_reward_net.n_models, generate_val_dataset=True)
         for sum_ensemble in range(self.train_reward_net.n_models):
@@ -1428,11 +1213,11 @@ class PVSL(object):
 
                     cluster_fidxs = [list()
                                      for _ in self.current_assignment.assignments_vs]
-                for ag, fidxsag in fids_per_agent.items():
-                    # print(self.current_assignment.agent_to_vs_cluster_assignments.keys())
-                    # assert fragments1[fidxsag][0].agent in ag, f"Fragment {fragments1[fidxsag][0].agent} does not match agent {ag} in fidxs_per_agent."
-                    cluster_fidxs[int(
-                        self.current_assignment.agent_to_vs_cluster_assignments[ag])].extend(fidxsag)
+                    for ag, fidxsag in fids_per_agent.items():
+                        # print(self.current_assignment.agent_to_vs_cluster_assignments.keys())
+                        # assert fragments1[fidxsag][0].agent in ag, f"Fragment {fragments1[fidxsag][0].agent} does not match agent {ag} in fidxs_per_agent."
+                        cluster_fidxs[int(
+                            self.current_assignment.agent_to_vs_cluster_assignments[ag])].extend(fidxsag)
                 self.optim.zero_grad()
                 # print(len(fragments1[0]))
                 check_grounding_value_system_networks_consistency_with_optim(

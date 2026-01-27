@@ -18,7 +18,7 @@ from defines import transform_weights_to_tuple
 from envs.firefighters_env_mo import FeatureSelectionFFEnv
 from envs.multivalued_car_env import MVFS, MultiValuedCarEnv
 from src.algorithms.preference_based_vsl_lib import BaseVSLClusterRewardLoss, ConstrainedLoss, ConstrainedOptimizer, PrefLossClasses, SobaLoss, SobaOptimizer, VSLOptimizer
-from src.algorithms.preference_based_vsl_simple import EnvelopeClusteredPBMORL
+from src.algorithms.preference_based_vsl_simple import EnvelopeAgentPBMORL, EnvelopeClusteredPBMORL
 from src.dataset_processing.utils import DEFAULT_SEED
 from src.feature_extractors import BaseRewardFeatureExtractor, ObservationMatrixRewardFeatureExtractor, ObservationWrapperFeatureExtractor
 from src.policies.morl_custom_reward import ROLLOUT_BUFFER_CLASSES, EnvelopeCustomReward, EnvelopePBMORL
@@ -203,7 +203,8 @@ MORL_ALGOS = deepcopy(ALGOS)
 MORL_ALGOS.update({
     "EnvelopeCustomReward": EnvelopeCustomReward,
     "EnvelopePBMORL": EnvelopePBMORL,
-    "EnvelopeClusteredPBMORL": EnvelopeClusteredPBMORL
+    "EnvelopeClusteredPBMORL": EnvelopeClusteredPBMORL,
+    "EnvelopeAgentPBMORL": EnvelopeAgentPBMORL
 })
 
 
@@ -387,7 +388,7 @@ def parse_learner_policy_kwargs(learner_policy_class, learner_policy_kwargs, ref
         else:
             raise NotImplementedError(
                 f"Custom policy class {learner_policy_kwargs['learner_policy_class']} not implemented for environment {ref_env.spec.id}")
-    elif learner_policy_class == 'EnvelopeCustomReward' or learner_policy_class == 'EnvelopePBMORL' or learner_policy_class == 'EnvelopeClusteredPBMORL':
+    elif learner_policy_class in MORL_ALGOS.keys():
         return learner_policy_kwargs  # TODO maybe more?
     else:
         raise NotImplementedError(
@@ -570,18 +571,19 @@ def parse_learning_policy_parameters(parser_args, environment_data: Dict, societ
 def parse_society_data(parser_args, society_config_env):
     society_data = society_config_env[parser_args.society_name]
 
-    if society_data['agents'][0] == 'sample':
-        agent_profiles = sample_example_profiles(
-            society_data['agents'][1], n_values=society_data['n_values'])
-
-        society_data['agents'] = []
-        for i, profile in enumerate(agent_profiles):
-            society_data['agents'].append({
-                'name': f"a_{profile}",
-                'value_system': transform_weights_to_tuple(profile),
-                "n_agents": society_data['default_n_agents'],
-                "data": society_data['default_data'],
-            })
+    if isinstance(society_data['agents'][0], str):
+        if society_data['agents'][0] == 'sample':
+            agent_profiles = sample_example_profiles(
+                society_data['agents'][1], n_values=society_data['n_values'])
+            
+            society_data['agents'] = []
+            for i, profile in enumerate(agent_profiles):
+                society_data['agents'].append({
+                    'name': f"a_{profile}",
+                    'value_system': transform_weights_to_tuple(profile),
+                    "n_agents": society_data['default_n_agents'],
+                    "data": society_data['default_data'],
+                })
     # print(agent_profiles)
 
     d: dict = society_data['agents']
@@ -699,7 +701,7 @@ def parse_args() -> Tuple[argparse.ArgumentParser, argparse._ArgumentGroup, argp
                                help='Society name in the society config file (overrides other defaults here, but not the command line arguments)')
 
     general_group.add_argument('-e', '--environment', type=str, required=True, choices=[
-                               'rw', 'ffmo', 'vrw', 'mvc', 'livroom', 'moral', 'dst', 'mine'], help='environment (roadworld - rw, firefighters - ff, variable dest roadworld - vrw, multivalued car - mvc)')
+                               'rw', 'ffmo', 'vrw', 'mvc', 'livroom', 'moral', 'dst', 'mine','hw'], help='environment (roadworld - rw, firefighters - ff, variable dest roadworld - vrw, multivalued car - mvc)')
 
     general_group.add_argument('-df', '--discount_factor', type=float, default=1.0,
                                help='Discount factor. For some environments, it will be neglected as they need a specific discount factor.')
@@ -713,7 +715,7 @@ def parse_args() -> Tuple[argparse.ArgumentParser, argparse._ArgumentGroup, argp
     alg_group = parser.add_argument_group('Algorithm-specific Parameters')
 
     general_group.add_argument('-a', '--algorithm', type=str, choices=[
-                               'pc', 'pbmorl', 'cpbmorl'], default='pc', help='Algorithm to use')
+                               'pc', 'pbmorl', 'cpbmorl', 'apbmorl'], default='pc', help='Algorithm to use')
 
     env_group = parser.add_argument_group('environment-specific Parameters')
 

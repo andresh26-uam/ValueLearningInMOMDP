@@ -18,15 +18,9 @@ import torch as th
 
 from imitation.util import util
 
-def check_grounding_value_system_networks_consistency_with_optim(grounding, value_system_per_cluster, optimizer, only_grounding: bool=False, copies: bool=False, check_grads: bool=False):
+def check_grounding_value_system_networks_consistency_with_optim(grounding: RewardVectorModule, value_system_per_cluster, optimizer, only_grounding: bool=False, copies: bool=False, check_grads: bool=False):
     if __debug__:
         """Checks if the optimizer parameters match the networks' parameters."""
-        optimizer_params = {param for group in optimizer.param_groups for param in group['params']}
-        if check_grads:
-            assert all([param.requires_grad for param in optimizer_params]), "Some value system parameters are missing in the optimizer."
-            
-        #network_params = {param for network in grounding.networks for param in network.parameters()}
-        #network_params.update({param for network in value_system_per_cluster for param in network.parameters()})
         network_params = {param for param in grounding.parameters()}
         
         if not only_grounding:
@@ -34,6 +28,17 @@ def check_grounding_value_system_networks_consistency_with_optim(grounding, valu
             if check_grads:
                 assert all([param.requires_grad for param in vs_params]), "Some value system parameters are missing in the optimizer."
             network_params.update({param for network in value_system_per_cluster for param in network.parameters()})
+
+        optimizer_params = {param for group in optimizer.param_groups for param in group['params']} #if param in network_params and param.requires_grad}
+        if check_grads:
+            assert any([param.requires_grad for param in optimizer_params]), "There are NO parameters with gradients."
+            #assert all([param.requires_grad for param in optimizer_params]), "Some value system parameters are missing in the optimizer."
+            
+        #network_params = {param for network in grounding.networks for param in network.parameters()}
+        #network_params.update({param for network in value_system_per_cluster for param in network.parameters()})
+        
+        
+        
         #print(len(optimizer_params), len(network_params))
         if not copies:
             assert optimizer_params == network_params, "Optimizer parameters do not match the networks' parameters."
@@ -80,13 +85,19 @@ def generate_random_assignment(dataset: VSLPreferenceDataset, l_max, alignment_l
         agent_to_vs_cluster_assignments = {}
         assignments_vs = [list() for _ in range(len(value_system_per_cluster_c))]
 
-        for aid in dataset.agent_data.keys():
-            agent_to_vs_cluster_assignments[aid] = {}
-                        
-            cs = np.random.choice(l_max)
-            assignments_vs[cs].append(aid)
-            agent_to_vs_cluster_assignments[aid] = cs
-                
+        if dataset.n_agents > l_max:
+            for aid in dataset.agent_data.keys():
+                agent_to_vs_cluster_assignments[aid] = {}
+                            
+                cs = np.random.choice(l_max)
+                assignments_vs[cs].append(aid)
+                agent_to_vs_cluster_assignments[aid] = cs
+        else:
+            assert dataset.n_agents == l_max, "Number of agents must be equal to l_max to assign one-to-one."
+            for aid_idx, aid in enumerate(dataset.agent_data.keys()):
+                cs = aid_idx % l_max
+                assignments_vs[cs].append(aid)
+                agent_to_vs_cluster_assignments[aid] = cs
         
         new_gr = ref_grounding.copy_new()
         reference_assignment = ClusterAssignment(weights_per_cluster=value_system_per_cluster_c, 

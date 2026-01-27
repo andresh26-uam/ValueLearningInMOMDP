@@ -489,6 +489,9 @@ class VSLPreferenceDataset(preference_comparisons.PreferenceDataset):
                 if agent_id not in self.data_per_agent.keys():
                     self.data_per_agent[agent_id] = VSLPreferenceDataset(self.n_values, single_agent=True)
                 idxs_agent_id = np.where(np.asarray(agent_ids) == agent_id)[0]
+                print(agent_id)
+                if isinstance(agent_id, int):
+                    exit(0)
                 self.data_per_agent[agent_id].push(fragments[idxs_agent_id], preferences[idxs_agent_id], preferences_with_grounding[idxs_agent_id, :], agent_ids=[agent_id]*len(idxs_agent_id), agent_data=None)
         if len(fragments) == 0:
             self.certify_data_consistency()
@@ -594,6 +597,9 @@ class VSLPreferenceDataset(preference_comparisons.PreferenceDataset):
                 if (not hasattr(self, '_states1')) or self.states1 is None:
                     self.transition_mode(device=device)
         fidxs_per_agent = dict()
+
+        #print(list(self.fidxs_per_agent.keys()))
+        #input("Press Enter to continue...")
         if isinstance(batch_size, float):
             if per_agent:
                 batch_size = int(batch_size * len(self.fragments1) / self.n_agents)
@@ -740,6 +746,9 @@ class FixedLengthVSLPreferenceDataset(VSLPreferenceDataset):
         self.fidxs_per_agent = {}
 
    
+    @property
+    def n_agents(self):
+        return len([l for l in set(self.l_agent_ids) if isinstance(l, str)])
     
     @property
     def preferences_with_grounding(self):
@@ -747,7 +756,9 @@ class FixedLengthVSLPreferenceDataset(VSLPreferenceDataset):
 
     @property
     def agent_ids(self):
-        return self.l_agent_ids[0:self.size]
+        ags = self.l_agent_ids[0:self.size]
+        assert all([isinstance(ag, str) for ag in ags]), f"Agent IDs must be strings, but got {ags}"
+        return ags
     
    
     @property
@@ -768,7 +779,7 @@ class FixedLengthVSLPreferenceDataset(VSLPreferenceDataset):
         print("PTR", self.ptr)
         print("MAX SIZE", self.max_size)
         for ag in self.fidxs_per_agent.keys():
-            
+            assert ag != 0, "Agent ID cannot be 0"
             fidxs_ag = self.fidxs_per_agent[ag]
             #assert len(fidxs_ag) == len(self.data_per_agent[ag]), f"Data inconsistency for agent {ag}"
                 #assert all(self.fragments1[fidxs_ag] == self.data_per_agent[ag].fragments1), f"Data inconsistency for agent {ag}"
@@ -848,6 +859,10 @@ class FixedLengthVSLPreferenceDataset(VSLPreferenceDataset):
         self._states1 = None # to force transition mode next time.
         
         ags_new = set(self.l_agent_ids)
+        try: 
+            ags_new.remove(0)
+        except KeyError:
+            pass
         for agent_id in ags_new:
             if isinstance(agent_id, str):
                 self.fidxs_per_agent[agent_id] = np.where(self.l_agent_ids == agent_id)[0]

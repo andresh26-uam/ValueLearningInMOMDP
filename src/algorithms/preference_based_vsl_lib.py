@@ -1019,7 +1019,7 @@ class BaseVSLClusterRewardLoss(preference_comparisons.RewardLoss):
                 """
                 # loss_gr += th.mean(th.nn.functional.binary_cross_entropy(prgvi, preferences_with_grounding[:, vi], reduce=False) -th.multiply(prgvi, self.beta*th.log(prgvi)))
                 # TODO: IMPORTANT: This method works because we are assuming SAME NUMBER OF EXAMPLES PER AGENT AND 1 CLUSTER.
-                # TODO: IMPORTANT NEED TO DO AS IN LOSS VS FOR COHERENCE IN THE GENERAL CASE.
+                # TODO: IMPORTANT NEED TO DO AS IN LOSS VS IN THE GENERAL CASE.
                 nl = self.loss_func(probs_gr[:, vi], preferences_with_grounding[:, vi], misclassified_pairs=missclassified_gr[vi],
                                     apply_on_misclassified_only=self.gr_apply_on_misclassified_only, logits=logits_grounding[:, vi])
                 metrics['loss_per_vi'][vi] = nl
@@ -1301,9 +1301,15 @@ class ConstrainedLoss(VSLCustomLoss):
         # print("REAL_THINGS GRADIENTED", self.vs_loss, self.gr_loss_per_vi, self.lagrange_multipliers, self.last_accuracy_gr, self.best_accuracies)
         # input()
         lmbig0 = sum(self.lagrange_multipliers) > 0
+
+        with th.no_grad():
+            weights_all = [1.0] + [self.lagrange_multipliers[vi] for vi in range(len(self.lagrange_multipliers))]
+            weights_all = th.tensor(weights_all, device=scalar_loss.device).requires_grad_(False)
+            sum_weights_all = th.sum(weights_all)
+            weights_all = weights_all / sum_weights_all
         if lmbig0:
-            real_loss = self.vs_loss*renormalization + \
-                sum(self.lagrange_multipliers[vi] * self.gr_loss_per_vi[vi]
+            real_loss = weights_all[0]*self.vs_loss*renormalization + \
+                sum(weights_all[vi+1] * self.gr_loss_per_vi[vi]
                     * renormalization for vi in range(len(self.gr_loss_per_vi)))
         else:
             real_loss = self.vs_loss*renormalization
@@ -1329,8 +1335,15 @@ class ConstrainedLoss(VSLCustomLoss):
                 if diff > max_diff:
                     max_diff = diff
                     farthest_l = vi
-            self.lagrange_multipliers[farthest_l].grad = -th.clamp(
+
+            # now it is: derive (x/x + (sum_weights_all-x) * grounding_loss)
+            # grounding_loss*sum_weights_all - x*grounding_loss*1 / (sum_weights_all)^2'
+            """self.lagrange_multipliers[farthest_l].grad = -th.clamp(
                 th.abs(self.gr_loss_per_vi[farthest_l] * renormalization), min=0.0).detach()
+            """
+            grounding_loss = th.abs(self.gr_loss_per_vi[farthest_l] * renormalization)
+            x = self.lagrange_multipliers[farthest_l]
+            self.lagrange_multipliers[farthest_l].grad = -th.clamp(((grounding_loss*sum_weights_all-x*grounding_loss)/(th.pow(sum_weights_all, 2))), min=0.0).detach()
 
         return b
 

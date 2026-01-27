@@ -37,6 +37,11 @@ register(
 )
 
 register(
+     id="HighwayEnvValue-v0",
+     entry_point="envs.highway_env:HighwayEnvMO",
+     max_episode_steps=1000,
+)
+register(
      id="RouteChoiceEnvironmentApolloComfort-v0",
      entry_point="envs.routechoiceApollo:RouteChoiceEnvironmentApolloComfort",
      max_episode_steps=1,

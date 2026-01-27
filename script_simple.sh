@@ -134,6 +134,10 @@ while [[ $# -gt 0 ]]; do
             resume_from="$2"
             shift 2
             ;;
+        -sname)
+            sname="$2"
+            shift 2
+            ;;
         *)
             shift
             ;;
@@ -143,6 +147,7 @@ done
 
 echo "Running with: "
 echo "ENVIRONMENT": $env
+echo "SOCIETY": $sname
 echo "MODE": $mode
 echo "EXPERT POLICY": $expol
 echo "LEARNER POLICY": $pol
@@ -155,12 +160,12 @@ echo "WANDB": $wandb
 echo "PREFIX=": $prefix
 echo "PREFIX DATA=": $prefix_data
 echo "DEBUGGING": $O
-if [[ "$env" != "ffmo" && "$env" != "mvc" && "$env" != "rw" && "$env" != "dst" && "$env" != "mine" ]]; then
-    echo "Error: env must be one of: ffmo, mvc, rw, dst, mine"
+if [[ "$env" != "ffmo" && "$env" != "mvc" && "$env" != "rw" && "$env" != "dst" && "$env" != "mine"  && "$env" != "hw" ]]; then
+    echo "Error: env must be one of: ffmo, mvc, rw, dst, mine, hw"
     exit 1
 fi
-if [[ "$algo" != "pc" && "$algo" != "pbmorl" && "$algo" != "free" && "$algo" != "cpbmorl"  ]]; then
-    echo "Error: algo must be one of: pbmorl, pc, free, cpbmorl"
+if [[ "$algo" != "pc" && "$algo" != "pbmorl" && "$algo" != "free" && "$algo" != "cpbmorl" && "$algo" != "apbmorl" ]]; then
+    echo "Error: algo must be one of: pbmorl, pc, free, cpbmorl, apbmorl"
     exit 1
 fi
 
@@ -182,7 +187,9 @@ fi
 if [[ "$algo" == "cpbmorl" ]]; then
     pol="EnvelopeClusteredPBMORL"
 fi
-
+if [[ "$algo" == "apbmorl" ]]; then
+    pol="EnvelopeAgentPBMORL"
+fi
 echo "NEW LEARNER POLICY": $pol
 
 if [[ "$expol" != "ppo_learner" && "$expol" != "envelope" ]]; then

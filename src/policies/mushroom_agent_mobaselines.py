@@ -648,7 +648,7 @@ class MOBaselinesAgent(Agent, Serializable):
             self.agent_mobaselines.gamma = prev_gamma
             raise NotImplementedError(f"Pareto front not implemented for this agent type. {self.agent_mobaselines.__class__.__name__}")
         """
-        filtered = get_non_pareto_dominated_inds(current_front)
+        filtered = get_non_pareto_dominated_inds(current_front, remove_duplicates=True)
         return (np.asarray(current_front)[filtered], np.asarray(eval_weights)[filtered]), (np.asarray(current_front), np.asarray(eval_weights))
 
 

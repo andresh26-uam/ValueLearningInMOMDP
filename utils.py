@@ -21,7 +21,11 @@ from src.dataset_processing.data import TrajectoryWithValueSystemRews
 from src.policies.mushroom_agent_mobaselines import MOBaselinesAgent
 import json
 
+from morl_baselines.common.pareto import get_non_pareto_dominated_inds
 
+def pareto_front_with_duplicates(solution_set_values, weights):
+    indices = get_non_pareto_dominated_inds(solution_set_values, remove_duplicates=False)
+    return (np.asarray(solution_set_values)[indices], np.asarray(weights)[indices])
 def select_output_shape(regressor_type, n_actions, n_objectives):
     if n_objectives is None:
         mo = False
@@ -196,7 +200,9 @@ def train(core: Core,
 
 
 def visualize_pareto_front(learned_front_data=None, known_front_data=None, weights_in_pareto_front={}, title="Pareto Front Visualization",
-                           save_path=None, show_weights=True, objective_names=None, show=False, with_clusters: ClusterAssignment = None, cluster_colors=None, fontsize=12, calculate_metrics=False, ref_point=None, clusters_not_in_pf=None):
+                           save_path=None, show_weights=True, objective_names=None, show=False, 
+                           with_clusters: ClusterAssignment = None, cluster_colors=None, fontsize=12, 
+                           calculate_metrics=False, ref_point=None, clusters_not_in_pf=None):
     """
     Visualize the Pareto front with learned and known fronts.
 
@@ -212,6 +218,8 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, weigh
     """
     metrics = None
     metrics_cl = None
+    learned_front_data = np.asarray(learned_front_data) if learned_front_data is not None else None
+    known_front_data = np.asarray(known_front_data) if known_front_data is not None else None
     if learned_front_data is not None:
         np.save(os.path.join(save_path + '_learned_front.npy'),
                 np.array(learned_front_data))
@@ -235,8 +243,11 @@ def visualize_pareto_front(learned_front_data=None, known_front_data=None, weigh
         cardinality_metric = cardinality(front=learned_front_data[0])
         expected_utility_metric = expected_utility(front=learned_front_data[0], weights_set={
                                                    tuple(w) for w in learned_front_data[1]})
-        maximum_utility_loss_metric = maximum_utility_loss(
+        if known_front_data is not None:
+            maximum_utility_loss_metric = maximum_utility_loss(
             reference_set=known_front_data, front=learned_front_data[0], weights_set={tuple(w) for w in learned_front_data[1]})
+        else:
+            maximum_utility_loss_metric = 0.0
         metrics = {
             "Hypervolume": hypervolume_metric,
             "Cardinality": cardinality_metric,

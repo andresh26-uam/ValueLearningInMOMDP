@@ -1,5 +1,7 @@
+from copy import deepcopy
 import enum
 import random
+import time
 from typing import Callable, Iterable, Optional, Tuple, Union
 from gymnasium import Env
 import numpy as np
@@ -113,7 +115,7 @@ def mce_partition_fh(
     else:
         broad_R = reward
         assert len(reward.shape) == 2
-    if isinstance(broad_R, torch.Tensor):
+    if isinstance(broad_R, th.Tensor):
         broad_R = broad_R.detach().cpu().numpy()
 
     if policy_approximator == PolicyApproximators.MCE_ORIGINAL:
@@ -386,6 +388,95 @@ def get_demo_oms_from_trajectories(trajs: Iterable[types.Trajectory], state_dim,
 
     return demo_state_om
 
-import torch
+import torch as th
 
- 
+
+from mo_gymnasium.wrappers import MORecordEpisodeStatistics
+
+class MORecordEpisodeStatisticsCR(MORecordEpisodeStatistics):
+    def __init__(self, env, gamma = 1, buffer_length = 100, stats_key = "episode"):
+        super().__init__(env, gamma, buffer_length, stats_key)
+    def step(self, action):
+        """Steps through the environment, recording the episode statistics."""
+        # This is very close the code from the RecordEpisodeStatistics wrapper from Gymnasium.
+        (
+            observation,
+            rewards,
+            terminated,
+            truncated,
+            info,
+        ) = self.env.step(action)
+        assert isinstance(
+            info, dict
+        ), f"`info` dtype is {type(info)} while supported dtype is `dict`. This may be due to usage of other wrappers in the wrong order."
+        
+        if self.env.has_wrapper_attr("set_reward_vector_function"):
+            real_reward = info.get('untransformed_reward', 0)
+            
+        # CHANGE: The discounted returns are also computed here
+        else:
+            real_reward = rewards
+        if isinstance(real_reward, th.Tensor):
+            real_reward_ = real_reward.detach().cpu().numpy()
+        else:
+            real_reward_ = real_reward
+        if isinstance(rewards, th.Tensor):
+            rewards_ = rewards.detach().cpu().numpy()
+        else:
+            rewards_ = rewards
+        self.episode_returns += real_reward_
+        self.disc_episode_returns += real_reward_ * np.repeat(self.gamma**self.episode_lengths, self.reward_dim).reshape(
+                self.episode_returns.shape
+            )
+        self.disc_episode_returns_l += rewards_ * np.repeat(self.gamma**self.episode_lengths, self.reward_dim).reshape(
+            self.episode_returns.shape
+        )
+        self.episode_returns_l += rewards_
+        self.episode_lengths += 1
+
+        if terminated or truncated:
+            #assert self._stats_key not in info
+
+            episode_time_length = round(time.perf_counter() - self.episode_start_time, 6)
+
+            # Make a deepcopy to void subsequent mutation of the numpy array
+            episode_returns = deepcopy(self.episode_returns)
+            episode_returns_l = deepcopy(self.episode_returns_l)
+            disc_episode_returns = deepcopy(self.disc_episode_returns)
+            disc_episode_returns_l = deepcopy(self.disc_episode_returns_l)
+
+            info["episode"] = {
+                "r": episode_returns,
+                "rl": episode_returns_l,
+                "dr": disc_episode_returns,
+                "drl": disc_episode_returns_l,
+                "l": self.episode_lengths,
+                "t": episode_time_length,
+            }
+
+            self.time_queue.append(episode_time_length)
+            self.return_queue.append(episode_returns)
+            self.length_queue.append(self.episode_lengths)
+
+            self.episode_count += 1
+            self.episode_start_time = time.perf_counter()
+
+        return (
+            observation,
+            rewards,
+            terminated,
+            truncated,
+            info,
+        )
+
+    def reset(self, **kwargs):
+        """Resets the environment using kwargs and resets the episode returns and lengths."""
+        obs, info = super().reset(**kwargs)
+
+        # CHANGE: Here we just override the standard implementation to extend to MO
+        self.episode_returns = np.zeros(self.rewards_shape, dtype=np.float32)
+        self.episode_returns_l = np.zeros(self.rewards_shape, dtype=np.float32)
+        self.disc_episode_returns = np.zeros(self.rewards_shape, dtype=np.float32)
+        self.disc_episode_returns_l = np.zeros(self.rewards_shape, dtype=np.float32)
+
+        return obs, info

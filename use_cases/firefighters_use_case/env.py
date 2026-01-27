@@ -15,7 +15,7 @@ class HighRiseFireEnv(gym.Env):
         super(HighRiseFireEnv, self).__init__()
 
         # Define the state and action spaces, and the objective space
-        self.action_space = spaces.Discrete(N_ACTIONS)  # 7 actions
+        self.action_space = spaces.Discrete(N_ACTIONS)  # 5 actions
         self.objective_space = spaces.Discrete(N_OBJECTIVES)
         self.state_space = spaces.MultiDiscrete(
             [1, 5, 5, 2, 2, 4], dtype=np.int64)  # Floor, Fire Intensity, Occupancy, Equipment, Visibility, Medical Condition
@@ -26,7 +26,7 @@ class HighRiseFireEnv(gym.Env):
         4. Equipment Readiness (Not Ready, Ready): Reflects the availability and readiness of necessary firefighting equipment.
         5. Visibility (Poor, Good): Represents the environmental condition affecting firefighting efforts.
         6. Firefighter condition (Perfect health, Slightly Injured, Moderately Injured, incapacitated) 
-        Total number of states: 3*5*5*2*2*4 = 1200
+        Total number of states: 1*5*5*2*2*4 = 400
         """
         self.states = {
             STATE_FLOOR_LEVEL: "Floor level",
@@ -148,7 +148,7 @@ class HighRiseFireEnv(gym.Env):
 
         # Rewards based on action and state transition
         if action == ACTION_EVACUATE_OCCUPANTS:  # Evacuate Occupants
-            professionalism_reward = max(0, 1-0.2*state[STATE_FIRE_INTENSITY]-0.1*state[STATE_VISIBILITY])
+            professionalism_reward = max(0, 1-0.2*state[STATE_FIRE_INTENSITY]-0.1*state[STATE_VISIBILITY]) # VISIBILITY IS WRONG, BLATANTLY WRONG: IF HIGH VISIBILITY, LOWER PROFESSIONALISM!!!!!!!!
             proximity_reward = 1.0
 
             if state[STATE_OCCUPANCY] == 0:

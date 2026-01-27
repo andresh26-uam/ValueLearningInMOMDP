@@ -148,6 +148,7 @@ if [[ "$prefix_data" == "useprefix" ]]; then
 fi
 echo "Running with: "
 echo "ENVIRONMENT": $env
+echo "SOCIETY": $sname
 echo "MODE": $mode
 echo "EXPERT POLICY": $expol
 echo "LEARNER POLICY": $pol
@@ -157,15 +158,14 @@ echo "SEEDS": ${seeds_list[@]}
 echo "WANDB": $wandb
 echo "RESUME FROM": $resume_from
 echo "DATA PREFIX": $prefix_data
-if [[ "$env" != "ffmo" && "$env" != "mvc" && "$env" != "rw" && "$env" != "dst" && "$env" != "mine" ]]; then
-    echo "Error: env must be one of: ffmo, mvc, dst, mine"
+if [[ "$env" != "ffmo" && "$env" != "mvc" && "$env" != "rw" && "$env" != "dst" && "$env" != "mine"  && "$env" != "hw" ]]; then
+    echo "Error: env must be one of: ffmo, mvc, rw, dst, mine, hw"
     exit 1
 fi
-if [[ "$algo" != "pc" && "$algo" != "pbmorl" && "$algo" != "free" && "$algo" != "cpbmorl" ]]; then
-    echo "Error: algo must be one of: pbmorl, pc, free, cpbmorl"
+if [[ "$algo" != "pc" && "$algo" != "pbmorl" && "$algo" != "free" && "$algo" != "cpbmorl" && "$algo" != "apbmorl" ]]; then
+    echo "Error: algo must be one of: pbmorl, pc, free, cpbmorl, apbmorl"
     exit 1
 fi
-
 if [[ "$mode" != "all" && "$mode" != "gen" && "$mode" != "genrt" && "$mode" != "train"  && "$mode" != "eval" && "$mode" != "traineval" ]]; then
     echo "Error: mode must be one of: all, gen, genrt, train, eval, traineval"
     exit 1
@@ -183,6 +183,9 @@ if [[ "$algo" == "pbmorl" ]]; then
 fi
 if [[ "$algo" == "cpbmorl" ]]; then
     pol="EnvelopeClusteredPBMORL"
+fi
+if [[ "$algo" == "apbmorl" ]]; then
+    pol="EnvelopeAgentPBMORL"
 fi
 if [[ "$expol" != "ppo_learner" && "$expol" != "envelope" ]]; then
     echo "Error: policy must be one of: ppo_learner, envelope"

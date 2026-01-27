@@ -1269,22 +1269,25 @@ def plot_metrics_for_experiments(historic_assignments_per_lre: Dict[str, Dict[st
         values = np.array(values_padded)
         values = np.clip(values, -10.0, 10.0)
         total_points = np.array(values).shape[-1]
-        num_points = 10
+        num_points = min(50, total_points)
         x_indices = np.linspace(0, total_points - 1, num_points, dtype=int)
         x = [i + 1 for i in x_indices]
 
         mean_values = np.mean(np.array(values), axis=0)[x_indices]
         std_error = np.std(np.array(values), axis=0)[
             x_indices] / np.sqrt(len(experiment_names))
-
+        
         plt.plot(x, mean_values, line_styles[metric_name], color=colors[idx_color % len(colors)],
                  alpha=0.5, label=f"{metric_name}")
         plt.fill_between(x, mean_values - std_error, mean_values + std_error, color=colors[idx_color % len(colors)],
                          alpha=0.2)
 
     plt.xlabel("Iteration", fontsize=fontsize)
-    plt.xticks(x, labels=[int(xi/len(x)*len(historic_assignments))
-               for xi in x], fontsize=fontsize)
+    labels = ["" for _ in x]
+    labels[0] = "0"
+    labels[len(x)//2] = str(total_points//2)
+    labels[-1] = str(total_points)
+    plt.xticks(x, labels=labels, fontsize=fontsize)
     plt.ylabel("Metric Value", fontsize=fontsize)
     plt.title("Learning curves", fontsize=fontsize)
     plt.legend(fontsize=fontsize)
@@ -1665,7 +1668,7 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
 
         if l_num == 0:
             l_num = best.Lmax
-        if algo_name != 'pbmorl':
+        if algo_name != 'pbmorl' and algo_name != 'apbmorl':
             print(list(best.value_systems), )
             assert l_num == best.Lmax, f"Expected Lmax {l_num}, but got {best.Lmax} for {ename}"
         l_num = best.Lmax  # Use the real Lmax
@@ -1679,6 +1682,7 @@ def evaluate(vsl_algo: PVSL, algo_name, enames_all, test_dataset, ref_env, ref_e
         vsl_algo_ename.mobaselines_agent.set_envs(
             env=ref_env, eval_env=ref_eval_env)
         vsl_algo_ename.current_assignment.certify_cluster_assignment_consistency()
+
 
         assert best.Lmax == vsl_algo_ename.Lmax, f"Expected Lmax {vsl_algo_ename.Lmax}, but got {best.Lmax} for {ename}"
         if algo_name != 'pbmorl':

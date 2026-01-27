@@ -1,9 +1,11 @@
+import math
 import shutil
 from parsing import create_environments, make_env, parse_args_generate_dataset, parse_epsilon_params_from_json, parse_expert_policy_parameters, parse_society_data, parse_wrappers_from_json
 from envs.multivalued_car_env import MVFS
 from morl_baselines.common.evaluation import seed_everything
 
-
+import scipy
+from scipy.stats import multivariate_normal
 import time
 from copy import deepcopy
 import os
@@ -32,11 +34,79 @@ import gymnasium as gym
 
 
 # from use_cases.roadworld_env_use_case.network_env import FeaturePreprocess, FeatureSelection
-from utils import dataset_to_trajectories, evaluate, train, visualize_pareto_front
+from utils import dataset_to_trajectories, evaluate, pareto_front_with_duplicates, train, visualize_pareto_front
 
 
 from mo_gymnasium.wrappers.wrappers import MORecordEpisodeStatistics
+from collections import Counter
 
+def parse_society_data_after_rl(society_data, pareto_front_and_weights_with_duplicates):
+    # Select point in the front closest to the specified centroids and then puts randomly selected agents with the same pareto efficiency
+    society_data['agents'] = []
+    society_front_and_weights = [[], []]  # values, weights
+    selection = society_data["selection_after_rl"]
+    # selection = {"method": "clusterized", "n_agents": 20, "centroids": [1,-2], "distribution": [0.5, 0.5]}
+
+    n_agents = min(selection['n_agents'], len(pareto_front_and_weights_with_duplicates[0]))
+    centroids = selection['centroids']
+
+    agent_count = 0
+    for i_c, c in enumerate(centroids):
+            closest_idx = np.argmin(np.linalg.norm(np.array(pareto_front_and_weights_with_duplicates[1]) - np.array(c), axis=1))
+            closest_point = pareto_front_and_weights_with_duplicates[0][closest_idx]
+            closest_weight = pareto_front_and_weights_with_duplicates[1][closest_idx]
+        
+            n_agents_centroid = math.floor(selection['distribution'][i_c]*n_agents)
+            print(f"Centroid {i_c}: closest index {closest_idx}, weight {closest_weight}, point {closest_point}, n_agents {n_agents_centroid}")
+            same_front_point_weights = [w for w, p in zip(pareto_front_and_weights_with_duplicates[1], pareto_front_and_weights_with_duplicates[0]) if np.allclose(p, closest_point)]
+            average_weights = np.mean(same_front_point_weights, axis=0)
+            cov_multiplier = selection.get('cov_multiplier', 1.0)
+            print("SAME FRONT POINT WEIGHTS", same_front_point_weights)
+            
+            # Fit a multivariate normal distribution to the same_front_point_weights
+            mean = np.mean(same_front_point_weights, axis=0)
+            cov = np.cov(same_front_point_weights, rowvar=False)
+
+            # Generate samples from the fitted distribution
+            print("Covariance matrix:", cov)
+            
+            multivariate_normal_over_same_front = multivariate_normal(mean=mean, cov=cov*cov_multiplier, allow_singular=True).rvs(size=n_agents_centroid)
+            multivariate_normal_over_same_front = np.abs(multivariate_normal_over_same_front) / np.linalg.norm(multivariate_normal_over_same_front, ord=1, axis=1, keepdims=True)
+            
+            for ag_centric in range(n_agents_centroid):
+                new_agent = {}
+                
+                random_weight = multivariate_normal_over_same_front[ag_centric]
+                # TODO: Sample de same_front_point_weights o de pareto_front_and_weights_with_duplicates[1]????
+                closest_random_weight = pareto_front_and_weights_with_duplicates[1][np.argmin(np.linalg.norm(np.array(pareto_front_and_weights_with_duplicates[1]) - np.array(random_weight), axis=1))]
+                closest_random_point = [p for w, p in zip(pareto_front_and_weights_with_duplicates[1], pareto_front_and_weights_with_duplicates[0]) if np.allclose(w, closest_random_weight)][0]
+                new_agent['value_system'] = transform_weights_to_tuple(closest_random_weight)
+                society_front_and_weights[1].append(closest_random_weight)
+                society_front_and_weights[0].append(closest_random_point)
+                new_agent['name'] = f"A{agent_count}|{new_agent['value_system']}"
+                new_agent['data'] = society_data['default_data']
+                new_agent['n_agents'] = 1
+                society_data['agents'].append(new_agent)
+                print("CPT:", closest_random_point, closest_random_weight)
+                agent_count += 1
+    # Transform society_data to group agents with the same value system
+    value_system_to_agents = {}
+    for agent in society_data['agents']:
+        value_system = tuple(agent['value_system'])
+        if value_system not in value_system_to_agents:
+            value_system_to_agents[value_system] = []
+        value_system_to_agents[value_system].append(agent)
+
+    new_agents = []
+    for value_system, agents in value_system_to_agents.items():
+        base_agent = agents[0]
+        base_agent['n_agents'] = len(agents)
+        base_agent['name'] = f"{base_agent['name'].split('|')[0]}|{value_system}"
+        new_agents.append(base_agent)
+
+    society_data['agents'] = new_agents
+    
+    return society_data, society_front_and_weights
 
 if __name__ == "__main__":
     # This script will generate a total of n_agents * trajectory_pairs of trajectories, and a chain of comparisons between them, per agent type, for the society selected
@@ -299,8 +369,12 @@ if __name__ == "__main__":
                                                                                                 num_eval_episodes_for_front=train_kwargs[
                                                                                                     'num_eval_episodes_for_front'],
                                                                                                 discount=alg_config['discount_factor'])
+        pareto_front_and_weights_with_duplicates = pareto_front_with_duplicates(
+            unfiltered_front_and_weights[0], unfiltered_front_and_weights[1])
 
         print("Solution set:", unfiltered_front_and_weights)
+        print("Pareto front with duplicates:", pareto_front_and_weights_with_duplicates)
+        
         print("LEARNED PARETO FRONT:", pareto_front_and_weights)
         print("REAL PARETO FRONT:", train_kwargs_restarted.get(
             'known_pareto_front', None))
@@ -323,14 +397,30 @@ if __name__ == "__main__":
                                    'known_pareto_front', None),
                                save_path=os.path.join(run_dir, f'expert_solutions'), show=False, fontsize=parser_args.plot_fontsize)
         if parser_args.remain_with_pareto_optimal_agents:
-            society_data['agents'] = []
-            for iw, weight in enumerate(pareto_front_and_weights[1]):
-                new_agent = {}
-                new_agent['value_system'] = weight
-                new_agent['name'] = f"A{iw}|{new_agent['value_system']}"
-                new_agent['data'] = society_data['default_data']
-                new_agent['n_agents'] = society_data['default_n_agents']
-                society_data['agents'].append(new_agent)
+            if society_data.get("selection_after_rl", None) is None:
+                society_data['agents'] = []
+                for iw, weight in enumerate(pareto_front_and_weights[1]):
+                    new_agent = {}
+                    new_agent['value_system'] = weight
+                    new_agent['name'] = f"A{iw}|{new_agent['value_system']}"
+                    new_agent['data'] = society_data['default_data']
+                    new_agent['n_agents'] = society_data['default_n_agents']
+                    society_data['agents'].append(new_agent)
+            else:
+                society_data, society_front_and_weights = parse_society_data_after_rl(society_data, pareto_front_and_weights_with_duplicates)
+                
+                print("society data agents:", society_data['agents'])
+                # Ensure society_front_and_weights[0] is initialized and populated
+                if not society_front_and_weights[0]:
+                    raise ValueError("society_front_and_weights[0] is empty or not initialized.")
+
+                # Count the number of occurrences of each unique point in the society front
+                points_counter = Counter(map(tuple, society_front_and_weights[0]))
+                print("Occurrences per unique point in the society front:")
+                for point, count in points_counter.items():
+                    print(f"Point: {point}, Count: {count}")
+                visualize_pareto_front(society_front_and_weights, known_front_data=pareto_front_and_weights[0], objective_names=environment_data['values_names'], show=False, save_path=os.path.join(run_dir, f'society_after_rl'), title="Society selected points after RL")
+        
 
     else:
         pareto_front_and_weights = None
@@ -416,10 +506,10 @@ if __name__ == "__main__":
                                                                                  ag['data']['rationality'],
                                                                                  agent=mobaselines_agent, env=eval_environment_mush.env, ws=[mobaselines_agent.get_weights()], ws_eval=[mobaselines_agent.get_weights()], seed=parser_args.seed)
 
-                print("PSEUDE EVAL: ", scalarized_return,
+                """print("PSEUDE EVAL: ", scalarized_return,
                       scalarized_discounted_return,
                       vec_return,
-                      disc_vec_return)
+                      disc_vec_return)"""
 
                 dataset, dataset_info, eval_time = evaluate(core=eval_core,
                                                             mdp=eval_environment_mush,
